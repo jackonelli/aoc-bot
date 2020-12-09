@@ -25,7 +25,7 @@ impl EventHandler for Handler {
                 if let Err(why) = msg.channel_id.say(&ctx.http, "Update").await {
                     println!("Error sending message: {:?}", why);
                 };
-                thread::sleep(API_DELAY);
+                tokio::time::delay_for(API_DELAY).await;
             }
         }
     }
@@ -46,7 +46,6 @@ async fn main() {
         .await
         .expect("Err creating client");
 
-    //thread::spawn(move || periodic_update(client));
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
     }
