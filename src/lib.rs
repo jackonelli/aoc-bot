@@ -4,8 +4,14 @@ use std::cmp;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::prelude::*;
+use reqwest;
 
-fn _test_output() {
+async fn _test_output() {
+    // This is the request part. Doesn't really work at all. res gets some kind of value
+    // if the ? is removed. Too send req to AoC we need headers
+    // let client = reqwest::Client::new();
+    // let res = client.get("http://httpbin.org/get").send().await?;
+
     let file = "sample.json";
     let mut file = File::open(file).expect("Opening file error");
     let mut contents = String::new();
