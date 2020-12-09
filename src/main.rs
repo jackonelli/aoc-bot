@@ -1,12 +1,12 @@
 use std::env;
-use std::{thread, time};
+use std::time::Duration;
 use serenity::{
     async_trait,
     model::{channel::Message, gateway::Ready},
     prelude::*,
 };
 
-const API_DELAY: time::Duration= time::Duration::from_secs(5);
+const API_DELAY: Duration = Duration::from_secs(5);
 const HELP_CMD: &str = "?help";
 const START_CMD: &str = "!start";
 
