@@ -5,6 +5,7 @@ authors = ["Jacko Jackonelli <jakob.lindqvist.92@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+derive_more = "*"
 tokio = { version = "0.2", features = ["time", "macros"] }
 serenity = { default-features = false, features = ["client", "gateway", "model",
 "rustls_backend"], version = "0.9.0-rc.2"}

@@ -1,4 +1,4 @@
-use std::env;
+use crate::aoc_data::{AocData, get_aoc_data, get_latest_local};
 use std::time::Duration;
 use serenity::{
     async_trait,
@@ -7,17 +7,19 @@ use serenity::{
 };
 
 const API_DELAY: Duration = Duration::from_secs(5);
-const HELP_CMD: &str = "?help";
+const SCORE_CMD: &str = "?score";
 const START_CMD: &str = "!start";
 const STAR_EMOJI: char = '\u{2B50}';
 
-struct Handler;
+pub struct Handler;
 
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
-        if msg.content == HELP_CMD {
-            if let Err(why) = msg.channel_id.say(&ctx.http, "Here's help").await {
+        if msg.content == SCORE_CMD {
+            let aoc_data = get_latest_local();
+
+            if let Err(why) = msg.channel_id.say(&ctx.http, &aoc_data.scores_fmt()).await {
                 println!("Error sending message: {:?}", why);
             };
         };
@@ -36,18 +38,3 @@ impl EventHandler for Handler {
 
 }
 
-
-//#[tokio::main]
-//async fn main() {
-//    let token = env::var("DISCORD_TOKEN")
-//        .expect("Expected a token in the environment");
-//
-//    let mut client = Client::builder(&token)
-//        .event_handler(Handler)
-//        .await
-//        .expect("Err creating client");
-//
-//    if let Err(why) = client.start().await {
-//        println!("Client error: {:?}", why);
-//    }
-//}
