@@ -56,6 +56,7 @@ impl AocData {
                 score.local
             ));
         }
+        fmt_score.push_str("* Local score (ls) för dag 1. ej inräknad. Klintan ska fixa.");
         fmt_score
     }
 
