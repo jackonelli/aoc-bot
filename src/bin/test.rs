@@ -1,12 +1,19 @@
-use aoc_bot::aoc_data::{get_local_data, AocData};
+use aoc_bot::aoc_data::{get_local_data, AocData, AocError};
 
 #[tokio::main]
-async fn main() {
-    let latest: AocData = get_local_data("latest.json");
-    let prev: AocData = get_local_data("prev.json");
-    println!("{:?}", latest.latest_star());
+async fn main() -> Result<(), AocError> {
+    let latest = get_local_data("alatest.json");
+    println!("Latest: {}", latest.err().unwrap());
+    Ok(())
+}
+
+async fn _main() -> Result<(), AocError> {
+    let latest: AocData = get_local_data("alatest.json")?;
+    println!("Latest: {:?}", latest.latest_star());
+    let prev: AocData = get_local_data("prev.json")?;
     match latest.diff(&prev) {
         Some(diff) => println!("{}", diff.fmt()),
         None => println!("No news")
     }
+    Ok(())
 }

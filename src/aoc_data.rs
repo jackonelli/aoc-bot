@@ -10,24 +10,24 @@ use std::io::prelude::*;
 use reqwest::header::COOKIE;
 use thiserror::Error;
 
-pub fn get_local_data(file: &str) -> AocData {
-    let mut file = File::open(file).expect("Opening file error");
+pub fn get_local_data(file: &str) -> Result<AocData, AocError> {
+    let mut file = File::open(file)?;
     let mut contents = String::new();
-    file.read_to_string(&mut contents)
-        .expect("Read to string error");
-    serde_json::from_str(&contents).expect("parse_error")
+    file.read_to_string(&mut contents)?;
+    serde_json::from_str(&contents).map_err(|err| err.into())
 }
 
-pub async fn get_aoc_data() -> Result<AocData, reqwest::Error> {
+pub async fn get_aoc_data() -> Result<AocData, AocError> {
     let client = reqwest::Client::new();
+    let aoc_cookie = get_session_cookie()?;
     let res = client
         .get("https://adventofcode.com/2020/leaderboard/private/view/152507.json")
-        .header(COOKIE, get_session_cookie())
+        .header(COOKIE, aoc_cookie)
         .send()
         .await?
         .text()
         .await?;
-    Ok(serde_json::from_str(&res).unwrap())
+    Ok(serde_json::from_str(&res)?)
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -70,8 +70,19 @@ impl AocData {
         self.players.keys().cloned().collect()
     }
 
+    /// Aggregate possible diff
+    ///
+    /// Compare `self` to a previous data point `prev`
+    ///
+    /// If there are more recent stars or a change of players, there is a Some(diff).
+    /// Otherwise there is None.
+    ///
+    /// TODO: Correct check for change in players. Add field `lost_players` in `Diff`
+    ///
+    /// Never panics: unwrapping the access of `self.players[id]` is fine since `id` is in the set
+    /// set of `new_players` which is a subset of `self`.
     pub fn diff(&self, prev: &AocData) -> Option<Diff> {
-        // TODO: Incorrect check since the leaderboard could change such that the players are
+        // Incorrect check since the leaderboard could change such that the players are
         // different but have the same total number of players.
         if self.latest_star() == prev.latest_star() && self.num_players() == prev.num_players() {
             None
@@ -96,7 +107,7 @@ impl AocData {
             self.players.iter().filter(move |(id, _player)| !new_players.contains(id))
                 .filter(move |(id, player)| {
                     let new_ts = player.last_star_ts;
-                    let prev_ts = prev.players.get(id).expect("prev is is the set diff").last_star_ts;
+                    let prev_ts = prev.players.get(id).unwrap().last_star_ts;
                     new_ts != prev_ts})
                 .map(move |(id, player)| (player, prev.players.get(id).unwrap()))
 
@@ -228,13 +239,38 @@ pub struct LocalScore(u32);
 pub struct TimeStamp(i64);
 
 
-fn get_session_cookie() -> String {
-    let token = env::var("AOC_SESSION").expect("Expected a token in the environment");
-    format!("session={}", token)
+fn get_session_cookie() -> Result<String, AocError> {
+    let env_var = "AOC_SESSION";
+    match env::var(env_var) {
+        Ok(token) => Ok(format!("session={}", token)),
+        Err(err) => Err(AocError::Env{env_var: String::from(env_var), source: err}),
+    }
 }
 
 #[derive(Debug, Error)]
 pub enum AocError {
+    #[error("Data could not be deserialized")]
+    Serde(#[from] serde_json::Error),
+    #[error("API error: {}", source.to_string())]
+    AocApi {
+        #[from]
+        source: reqwest::Error
+    },
+    #[error("Discord error: {}", source.to_string())]
+    Discord {
+        #[from]
+        source: serenity::Error
+    },
+    #[error("IO error: {}", source.to_string())]
+    IO {
+        #[from]
+        source: std::io::Error
+    },
+    #[error("Environment var: '{}': {}", env_var, source.to_string())]
+    Env {
+        env_var: String,
+        source: env::VarError
+    },
 }
 
 fn de_player_id<'de, D: Deserializer<'de>>(deserializer: D) -> Result<PlayerId, D::Error> {
