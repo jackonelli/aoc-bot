@@ -8,11 +8,7 @@ use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use reqwest::header::COOKIE;
-
-pub fn get_latest_local() -> AocData {
-    let file = "latest.json";
-    get_local_data(file)
-}
+use thiserror::Error;
 
 pub fn get_local_data(file: &str) -> AocData {
     let mut file = File::open(file).expect("Opening file error");
@@ -39,7 +35,7 @@ pub struct AocData {
     event: String,
     #[serde(deserialize_with = "de_player_id")]
     owner_id: PlayerId,
-    #[serde(rename(serialize = "members", deserialize = "members"))]
+    #[serde(rename="members")]
     players: HashMap<PlayerId, Player>,
 }
 
@@ -73,21 +69,37 @@ impl AocData {
     fn player_ids(&self) -> HashSet<PlayerId> {
         self.players.keys().cloned().collect()
     }
+
     pub fn diff(&self, prev: &AocData) -> Option<Diff> {
+        // TODO: Incorrect check since the leaderboard could change such that the players are
+        // different but have the same total number of players.
         if self.latest_star() == prev.latest_star() && self.num_players() == prev.num_players() {
             None
         } else {
             let new_players: HashSet<PlayerId> = self.player_ids().difference(&prev.player_ids()).cloned().collect();
-            let upd_players = self.players.keys().filter(|id| !new_players.contains(id))
-                .filter(|id| {
-                    let new_ts = self.players.get(id).unwrap().last_star_ts;
-                    let prev_ts = prev.players.get(id).unwrap().last_star_ts;
-                    new_ts != prev_ts})
-                .map(|id| (self.players.get(id).unwrap(), prev.players.get(id).unwrap()));
+            let upd_players = self.updated_players(prev, &new_players);
             let new_stars = upd_players.map(|(new, prev)| (new.name.clone(), new.diff_stars(prev))).collect();
-            let new_players = new_players.iter().map(|id| self.players.get(id).unwrap().name.clone()).collect();
+            let new_players = new_players.into_iter().map(|id| self.players.get(&id).unwrap().clone()).collect();
             Some(Diff {new_players, new_stars})
         }
+    }
+
+    /// Updated players
+    ///
+    /// Get an iterator over players that are:
+    /// a) Not new, compared to `prev`. I.e. players that are in both `prev` and `self`
+    /// b) Have different timestamps for the last star.
+    ///
+    /// Never panics: unwrapping the access of `prev.players[id]` is fine since `id` is in the set
+    /// set of ids which comes from: `self setminus new_players`
+    fn updated_players<'a>(&'a self, prev: &'a AocData, new_players: &'a HashSet<PlayerId>) -> impl Iterator<Item = (&'a Player, &'a Player)> {
+            self.players.iter().filter(move |(id, _player)| !new_players.contains(id))
+                .filter(move |(id, player)| {
+                    let new_ts = player.last_star_ts;
+                    let prev_ts = prev.players.get(id).expect("prev is is the set diff").last_star_ts;
+                    new_ts != prev_ts})
+                .map(move |(id, player)| (player, prev.players.get(id).unwrap()))
+
     }
 
     pub fn latest_star(&self) -> Option<TimeStamp> {
@@ -104,8 +116,8 @@ impl AocData {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Diff {
-    new_players: Vec<String>,
-    new_stars: HashMap<String, HashMap<u32, u32>>
+    new_players: Vec<Player>,
+    new_stars: HashMap<String, BTreeMap<u32, u32>>
 }
 
 impl Diff {
@@ -122,6 +134,49 @@ impl Diff {
         }
         }
         fmt_diff
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct Player {
+    name: String,
+    local_score: LocalScore,
+    //TODO rename to latest star
+    #[serde(deserialize_with = "de_timestamp")]
+    last_star_ts: Option<TimeStamp>,
+    stars: StarCount,
+    completion_day_level: BTreeMap<u32, DayCompletion>,
+}
+
+impl Player {
+    fn diff_stars(&self, prev: &Player) -> BTreeMap<u32, u32> {
+        self.completion_day_level.iter().fold(BTreeMap::new(), |mut acc, (id, dc)| {
+            match prev.completion_day_level.get(id) {
+                // If the key exists in prev, the first star must be taken.
+                // Check if the second star is taken in the new data but not in the prev.
+                // If yes, return two since we want to display two stars, even though there is only
+                // one new star.
+                Some(prev_dc) => {
+                    if prev_dc.star_2.is_none() && dc.star_2.is_some() {
+                        acc.insert(*id, 2);
+                    }
+                },
+                // If the key does not exist in prev, then either one or both stars have been
+                // acquired since prev.
+                None => {
+                    let star_count = if dc.star_2.is_some() {2} else {1};
+                    acc.insert(*id, star_count);
+                }
+            };
+            acc
+        })
+    }
+
+    fn score(&self) -> Score {
+        Score {
+            stars: self.stars,
+            local: self.local_score,
+        }
     }
 }
 
@@ -149,41 +204,6 @@ impl Ord for Score {
 struct PlayerId(u32);
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-struct Player {
-    name: String,
-    local_score: LocalScore,
-    //TODO rename to latest star
-    #[serde(deserialize_with = "de_timestamp")]
-    last_star_ts: Option<TimeStamp>,
-    stars: StarCount,
-    completion_day_level: BTreeMap<u32, DayCompletion>,
-}
-
-impl Player {
-    fn diff_stars(&self, prev: &Player) -> HashMap<u32, u32> {
-        self.completion_day_level.iter().fold(HashMap::new(), |mut acc, (id, dc)| {
-            if !prev.completion_day_level.contains_key(id) {
-                let star_count = if dc.star_2.is_some() {2} else {1};
-                acc.insert(*id, star_count);
-            } else {
-                let dc_prev = prev.completion_day_level.get(id).unwrap();
-                if dc_prev.star_2.is_none() && dc.star_2.is_some() {
-                    acc.insert(*id, 2);
-                }
-            }
-            acc
-        })
-    }
-
-    fn score(&self) -> Score {
-        Score {
-            stars: self.stars,
-            local: self.local_score,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
 struct DayCompletion {
     #[serde(rename = "1")]
     star_1: StarProgress,
@@ -206,6 +226,16 @@ pub struct LocalScore(u32);
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize, Ord, PartialOrd, PartialEq, Eq)]
 pub struct TimeStamp(i64);
+
+
+fn get_session_cookie() -> String {
+    let token = env::var("AOC_SESSION").expect("Expected a token in the environment");
+    format!("session={}", token)
+}
+
+#[derive(Debug, Error)]
+pub enum AocError {
+}
 
 fn de_player_id<'de, D: Deserializer<'de>>(deserializer: D) -> Result<PlayerId, D::Error> {
     let raw = match Value::deserialize(deserializer)? {
@@ -234,9 +264,4 @@ fn de_timestamp<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Tim
         Value::Null => Ok(None),
         _ => Err(de::Error::custom("wrong type")),
     }
-}
-
-fn get_session_cookie() -> String {
-    let token = env::var("AOC_SESSION").expect("Expected a token in the environment");
-    format!("session={}", token)
 }
