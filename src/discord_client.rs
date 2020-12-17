@@ -1,11 +1,11 @@
 use crate::aoc_data::{get_aoc_data, get_local_data, AocData, AocError};
 use crate::STAR_EMOJI;
-use std::fs::File;
 use serenity::{
     async_trait,
-    model::{channel::Message, id::ChannelId, gateway::Ready},
+    model::{channel::Message, gateway::Ready, id::ChannelId},
     prelude::*,
 };
+use std::fs::File;
 use std::time::Duration;
 
 const API_DELAY: Duration = Duration::from_secs(901);
@@ -14,82 +14,55 @@ const START_CMD: &str = "!start";
 
 pub struct Handler;
 
-async fn publish_score(channel_id: &ChannelId, ctx: Context) -> Result<Message, AocError> {
-        let aoc_data = get_local_data("latest.json")?;
-        channel_id.say(&ctx.http, &aoc_data.scores_fmt()).await.map_err(
-            |err| AocError::Discord{
-                source: err,
-            }
-            )
-}
-
-/// Check for and publish update
-async fn update(channel_id: &ChannelId, ctx: Context) -> Result<(), AocError> {
-        println!("Checking for updates");
-        let latest_data = get_aoc_data().await?;
-        let prev: AocData = get_local_data("latest.json")?;
-        let diff = latest_data.diff(&prev);
-        match diff {
-            Some(diff) => {channel_id.say(&ctx.http, &diff.fmt()).await.map_err(|err|
-            AocError::Discord{
-                source: err,
-            }
-            )?;
-            serde_json::to_writer(&File::create("latest.json")?, &latest_data)?;
-            Ok(())
-
-        },
-        None => { Ok(()) },
-        }
-}
-
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
-
         match msg.content.as_ref() {
-            SCORE_CMD => {
-                match publish_score(&msg.channel_id, ctx).await {
-                    Ok(_) => {},
-                    Err(err) => println!("{}", err),
-                }
+            SCORE_CMD => match publish_score(&msg.channel_id, ctx).await {
+                Ok(_) => {}
+                Err(err) => println!("{}", err),
             },
             START_CMD => {
                 println!("Starting");
                 loop {
                     match update(&msg.channel_id, ctx.clone()).await {
-                        Ok(_) => {},
+                        Ok(_) => {}
                         Err(err) => println!("{}", err),
                     }
                     tokio::time::delay_for(API_DELAY).await;
                 }
-            },
+            }
             _ => {}
         }
-        //if msg.content == SCORE_CMD {
-        //    let aoc_data = get_local_data("latest.json");
-        //    if let Err(why) = msg.channel_id.say(&ctx.http, &aoc_data.scores_fmt()).await {
-        //        println!("Error sending message: {:?}", why);
-        //    };
-        //};
-        //if msg.content == START_CMD {
-        //    println!("Starting");
-        //    loop {
-        //        println!("Checking for updates");
-        //        let latest_data = get_aoc_data().await.unwrap();
-        //        let prev: AocData = get_local_data("latest.json");
-        //        let diff = latest_data.diff(&prev);
-        //        if diff.is_some() {
-        //            if let Err(why) = msg.channel_id.say(&ctx.http, &diff.unwrap().fmt()).await {
-        //                println!("Error sending message: {:?}", why);
-        //            };
-        //            serde_json::to_writer(&File::create("latest.json").unwrap(), &latest_data).unwrap();
-        //        }
-        //        tokio::time::delay_for(API_DELAY).await;
-        //    }
-        //}
     }
     async fn ready(&self, _ctx: Context, ready: Ready) {
         println!("{} is connected! {}", ready.user.name, STAR_EMOJI);
+    }
+}
+
+async fn publish_score(channel_id: &ChannelId, ctx: Context) -> Result<Message, AocError> {
+    let aoc_data = get_local_data("latest.json")?;
+    channel_id
+        .say(&ctx.http, &aoc_data.scores_fmt())
+        .await
+        .map_err(|err| AocError::Discord { source: err })
+}
+
+/// Check for and publish update
+async fn update(channel_id: &ChannelId, ctx: Context) -> Result<(), AocError> {
+    println!("Checking for updates");
+    let latest_data = get_aoc_data().await?;
+    let prev: AocData = get_local_data("latest.json")?;
+    let diff = latest_data.diff(&prev);
+    match diff {
+        Some(diff) => {
+            channel_id
+                .say(&ctx.http, &diff.fmt())
+                .await
+                .map_err(|err| AocError::Discord { source: err })?;
+            serde_json::to_writer(&File::create("latest.json")?, &latest_data)?;
+            Ok(())
+        }
+        None => Ok(()),
     }
 }

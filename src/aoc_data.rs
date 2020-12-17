@@ -1,5 +1,6 @@
 use crate::STAR_EMOJI;
 use derive_more::Display;
+use reqwest::header::COOKIE;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd, Reverse};
@@ -7,7 +8,6 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
 use std::fs::File;
 use std::io::prelude::*;
-use reqwest::header::COOKIE;
 use thiserror::Error;
 
 pub fn get_local_data(file: &str) -> Result<AocData, AocError> {
@@ -35,7 +35,7 @@ pub struct AocData {
     event: String,
     #[serde(deserialize_with = "de_player_id")]
     owner_id: PlayerId,
-    #[serde(rename="members")]
+    #[serde(rename = "members")]
     players: HashMap<PlayerId, Player>,
 }
 
@@ -87,11 +87,23 @@ impl AocData {
         if self.latest_star() == prev.latest_star() && self.num_players() == prev.num_players() {
             None
         } else {
-            let new_players: HashSet<PlayerId> = self.player_ids().difference(&prev.player_ids()).cloned().collect();
+            let new_players: HashSet<PlayerId> = self
+                .player_ids()
+                .difference(&prev.player_ids())
+                .cloned()
+                .collect();
             let upd_players = self.updated_players(prev, &new_players);
-            let new_stars = upd_players.map(|(new, prev)| (new.name.clone(), new.diff_stars(prev))).collect();
-            let new_players = new_players.into_iter().map(|id| self.players.get(&id).unwrap().clone()).collect();
-            Some(Diff {new_players, new_stars})
+            let new_stars = upd_players
+                .map(|(new, prev)| (new.name.clone(), new.diff_stars(prev)))
+                .collect();
+            let new_players = new_players
+                .into_iter()
+                .map(|id| self.players.get(&id).unwrap().clone())
+                .collect();
+            Some(Diff {
+                new_players,
+                new_stars,
+            })
         }
     }
 
@@ -103,14 +115,20 @@ impl AocData {
     ///
     /// Never panics: unwrapping the access of `prev.players[id]` is fine since `id` is in the set
     /// set of ids which comes from: `self setminus new_players`
-    fn updated_players<'a>(&'a self, prev: &'a AocData, new_players: &'a HashSet<PlayerId>) -> impl Iterator<Item = (&'a Player, &'a Player)> {
-            self.players.iter().filter(move |(id, _player)| !new_players.contains(id))
-                .filter(move |(id, player)| {
-                    let new_ts = player.last_star_ts;
-                    let prev_ts = prev.players.get(id).unwrap().last_star_ts;
-                    new_ts != prev_ts})
-                .map(move |(id, player)| (player, prev.players.get(id).unwrap()))
-
+    fn updated_players<'a>(
+        &'a self,
+        prev: &'a AocData,
+        new_players: &'a HashSet<PlayerId>,
+    ) -> impl Iterator<Item = (&'a Player, &'a Player)> {
+        self.players
+            .iter()
+            .filter(move |(id, _player)| !new_players.contains(id))
+            .filter(move |(id, player)| {
+                let new_ts = player.last_star_ts;
+                let prev_ts = prev.players.get(id).unwrap().last_star_ts;
+                new_ts != prev_ts
+            })
+            .map(move |(id, player)| (player, prev.players.get(id).unwrap()))
     }
 
     pub fn latest_star(&self) -> Option<TimeStamp> {
@@ -128,7 +146,7 @@ impl AocData {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Diff {
     new_players: Vec<Player>,
-    new_stars: HashMap<String, BTreeMap<u32, u32>>
+    new_stars: HashMap<String, BTreeMap<u32, u32>>,
 }
 
 impl Diff {
@@ -136,13 +154,21 @@ impl Diff {
         let mut fmt_diff = String::new();
         for (pl, stars) in self.new_stars.iter() {
             for (day, sc) in stars {
-            fmt_diff.push_str(&format!(
-                "{0: <20} - Dag {1: <2}: {2:<2}\n",
-                pl,
-                day,
-                if *sc == 1 {STAR_EMOJI.to_string()} else {format!("{}{}",STAR_EMOJI, STAR_EMOJI)},
-            ));
+                fmt_diff.push_str(&format!(
+                    "{0: <20} - Dag {1: <2}: {2:<2}\n",
+                    pl,
+                    day,
+                    if *sc == 1 {
+                        STAR_EMOJI.to_string()
+                    } else {
+                        format!("{}{}", STAR_EMOJI, STAR_EMOJI)
+                    },
+                ));
+            }
         }
+        fmt_diff.push_str("New players: ");
+        for pl in &self.new_players {
+            fmt_diff.push_str(&format!("{} ", pl.name));
         }
         fmt_diff
     }
@@ -161,26 +187,28 @@ struct Player {
 
 impl Player {
     fn diff_stars(&self, prev: &Player) -> BTreeMap<u32, u32> {
-        self.completion_day_level.iter().fold(BTreeMap::new(), |mut acc, (id, dc)| {
-            match prev.completion_day_level.get(id) {
-                // If the key exists in prev, the first star must be taken.
-                // Check if the second star is taken in the new data but not in the prev.
-                // If yes, return two since we want to display two stars, even though there is only
-                // one new star.
-                Some(prev_dc) => {
-                    if prev_dc.star_2.is_none() && dc.star_2.is_some() {
-                        acc.insert(*id, 2);
+        self.completion_day_level
+            .iter()
+            .fold(BTreeMap::new(), |mut acc, (id, dc)| {
+                match prev.completion_day_level.get(id) {
+                    // If the key exists in prev, the first star must be taken.
+                    // Check if the second star is taken in the new data but not in the prev.
+                    // If yes, return two since we want to display two stars, even though there is only
+                    // one new star.
+                    Some(prev_dc) => {
+                        if prev_dc.star_2.is_none() && dc.star_2.is_some() {
+                            acc.insert(*id, 2);
+                        }
                     }
-                },
-                // If the key does not exist in prev, then either one or both stars have been
-                // acquired since prev.
-                None => {
-                    let star_count = if dc.star_2.is_some() {2} else {1};
-                    acc.insert(*id, star_count);
-                }
-            };
-            acc
-        })
+                    // If the key does not exist in prev, then either one or both stars have been
+                    // acquired since prev.
+                    None => {
+                        let star_count = if dc.star_2.is_some() { 2 } else { 1 };
+                        acc.insert(*id, star_count);
+                    }
+                };
+                acc
+            })
     }
 
     fn score(&self) -> Score {
@@ -238,12 +266,14 @@ pub struct LocalScore(u32);
 #[derive(Copy, Clone, Debug, Deserialize, Serialize, Ord, PartialOrd, PartialEq, Eq)]
 pub struct TimeStamp(i64);
 
-
 fn get_session_cookie() -> Result<String, AocError> {
     let env_var = "AOC_SESSION";
     match env::var(env_var) {
         Ok(token) => Ok(format!("session={}", token)),
-        Err(err) => Err(AocError::Env{env_var: String::from(env_var), source: err}),
+        Err(err) => Err(AocError::Env {
+            env_var: String::from(env_var),
+            source: err,
+        }),
     }
 }
 
@@ -254,22 +284,22 @@ pub enum AocError {
     #[error("API error: {}", source.to_string())]
     AocApi {
         #[from]
-        source: reqwest::Error
+        source: reqwest::Error,
     },
     #[error("Discord error: {}", source.to_string())]
     Discord {
         #[from]
-        source: serenity::Error
+        source: serenity::Error,
     },
     #[error("IO error: {}", source.to_string())]
     IO {
         #[from]
-        source: std::io::Error
+        source: std::io::Error,
     },
     #[error("Environment var: '{}': {}", env_var, source.to_string())]
     Env {
         env_var: String,
-        source: env::VarError
+        source: env::VarError,
     },
 }
 
@@ -290,13 +320,16 @@ fn de_player_id<'de, D: Deserializer<'de>>(deserializer: D) -> Result<PlayerId, 
 fn de_timestamp<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<TimeStamp>, D::Error> {
     match Value::deserialize(deserializer)? {
         Value::String(s) => {
-            let ts = s.trim().parse::<i64>().map_err(|err| de::Error::custom(&format!("string parse: {}", err.to_string())))?;
+            let ts = s
+                .trim()
+                .parse::<i64>()
+                .map_err(|err| de::Error::custom(&format!("string parse: {}", err.to_string())))?;
             Ok(Some(TimeStamp(ts)))
-        },
+        }
         Value::Number(ts) => match ts.as_i64() {
             Some(ts) => Ok(Some(TimeStamp(ts))),
             None => Err(de::Error::custom("i64 ts parsing")),
-        }
+        },
         Value::Null => Ok(None),
         _ => Err(de::Error::custom("wrong type")),
     }
