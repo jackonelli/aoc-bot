@@ -1,3 +1,6 @@
+//! # Advent of Code data
+//!
+//! Provides a strictly typed data schema and logic for the [Advent of Code](https://adventofcode.com/) competition API.
 use crate::STAR_EMOJI;
 use derive_more::Display;
 use reqwest::header::COOKIE;
@@ -9,26 +12,6 @@ use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use thiserror::Error;
-
-pub fn get_local_data(file: &str) -> Result<AocData, AocError> {
-    let mut file = File::open(file)?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
-    serde_json::from_str(&contents).map_err(|err| err.into())
-}
-
-pub async fn get_aoc_data() -> Result<AocData, AocError> {
-    let client = reqwest::Client::new();
-    let aoc_cookie = get_session_cookie()?;
-    let res = client
-        .get("https://adventofcode.com/2020/leaderboard/private/view/152507.json")
-        .header(COOKIE, aoc_cookie)
-        .send()
-        .await?
-        .text()
-        .await?;
-    Ok(serde_json::from_str(&res)?)
-}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AocData {
@@ -72,15 +55,14 @@ impl AocData {
 
     /// Aggregate possible diff
     ///
-    /// Compare `self` to a previous data point `prev`
+    /// Compare `self` to a previous data point `prev`.
+    /// If there are more recent stars or a change of players, there is a `Some([Diff])`.
+    /// Otherwise there is `None`.
     ///
-    /// If there are more recent stars or a change of players, there is a Some(diff).
-    /// Otherwise there is None.
+    /// TODO: Correct check for change in players. Add field `lost_players` in [`Diff`]
     ///
-    /// TODO: Correct check for change in players. Add field `lost_players` in `Diff`
-    ///
-    /// Never panics: unwrapping the access of `self.players[id]` is fine since `id` is in the set
-    /// set of `new_players` which is a subset of `self`.
+    /// Never panics: unwrapping the access of `self.players[id]` is fine since `id` is in the
+    /// set of `new_players` which is a subset of `self.players`.
     pub fn diff(&self, prev: &AocData) -> Option<Diff> {
         // Incorrect check since the leaderboard could change such that the players are
         // different but have the same total number of players.
@@ -110,11 +92,11 @@ impl AocData {
     /// Updated players
     ///
     /// Get an iterator over players that are:
-    /// a) Not new, compared to `prev`. I.e. players that are in both `prev` and `self`
+    /// a) Not new, compared to `prev.players`. I.e. players that are in both `prev.players` and `self.players`
     /// b) Have different timestamps for the last star.
     ///
-    /// Never panics: unwrapping the access of `prev.players[id]` is fine since `id` is in the set
-    /// set of ids which comes from: `self setminus new_players`
+    /// Never panics: unwrapping the access of `prev.players[id]` is fine since `id` is in the
+    /// set of ids which comes from: `self.players setminus new_players`
     fn updated_players<'a>(
         &'a self,
         prev: &'a AocData,
@@ -146,7 +128,7 @@ impl AocData {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Diff {
     new_players: Vec<Player>,
-    new_stars: HashMap<String, BTreeMap<u32, u32>>,
+    new_stars: HashMap<String, BTreeMap<Day, StarCount>>,
 }
 
 impl Diff {
@@ -158,10 +140,12 @@ impl Diff {
                     "{0: <20} - Dag {1: <2}: {2:<2}\n",
                     pl,
                     day,
-                    if *sc == 1 {
+                    if *sc == StarCount(1) {
                         STAR_EMOJI.to_string()
-                    } else {
+                    } else if *sc == StarCount(2) {
                         format!("{}{}", STAR_EMOJI, STAR_EMOJI)
+                    } else {
+                        panic!("Zero star count should be filtered out")
                     },
                 ));
             }
@@ -182,31 +166,19 @@ struct Player {
     #[serde(deserialize_with = "de_timestamp")]
     last_star_ts: Option<TimeStamp>,
     stars: StarCount,
-    completion_day_level: BTreeMap<u32, DayCompletion>,
+    completion_day_level: BTreeMap<Day, DayCompletion>,
 }
 
 impl Player {
-    fn diff_stars(&self, prev: &Player) -> BTreeMap<u32, u32> {
+    fn diff_stars(&self, prev: &Player) -> BTreeMap<Day, StarCount> {
         self.completion_day_level
             .iter()
-            .fold(BTreeMap::new(), |mut acc, (id, dc)| {
-                match prev.completion_day_level.get(id) {
-                    // If the key exists in prev, the first star must be taken.
-                    // Check if the second star is taken in the new data but not in the prev.
-                    // If yes, return two since we want to display two stars, even though there is only
-                    // one new star.
-                    Some(prev_dc) => {
-                        if prev_dc.star_2.is_none() && dc.star_2.is_some() {
-                            acc.insert(*id, 2);
-                        }
-                    }
-                    // If the key does not exist in prev, then either one or both stars have been
-                    // acquired since prev.
-                    None => {
-                        let star_count = if dc.star_2.is_some() { 2 } else { 1 };
-                        acc.insert(*id, star_count);
-                    }
-                };
+            .fold(BTreeMap::new(), |mut acc, (day, dc)| {
+                let new_star_count = dc.diff(prev.completion_day_level.get(day));
+                // `dc.diff` can return 0, which we don't want to record.
+                if new_star_count == StarCount(1) || new_star_count == StarCount(2) {
+                    acc.insert(*day, new_star_count);
+                }
                 acc
             })
     }
@@ -239,6 +211,9 @@ impl Ord for Score {
     }
 }
 
+#[derive(Copy, Clone, Debug, Display, Hash, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize)]
+struct Day(u32);
+
 #[derive(Clone, Debug, Hash, Eq, PartialEq, Deserialize, Serialize)]
 struct PlayerId(u32);
 
@@ -248,6 +223,29 @@ struct DayCompletion {
     star_1: StarProgress,
     #[serde(rename = "2")]
     star_2: Option<StarProgress>,
+}
+
+impl DayCompletion{
+    fn diff(&self, other: Option<&DayCompletion>) -> StarCount {
+        match other {
+            // If the key exists in prev, the first star must be taken.
+            // Check if the second star is taken in the new data but not in the prev.
+            // If yes, return two since we want to display two stars, even though there is only
+            // one new star.
+            Some(prev_dc) => {
+                if prev_dc.star_2.is_none() && self.star_2.is_some() {
+                    StarCount(2)
+                } else {
+                    StarCount(0)
+                }
+            }
+            // If the key does not exist in prev, then either one or both stars have been
+            // acquired since prev.
+            None => {
+                if self.star_2.is_some() { StarCount(2) } else { StarCount(1) }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -265,6 +263,27 @@ pub struct LocalScore(u32);
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize, Ord, PartialOrd, PartialEq, Eq)]
 pub struct TimeStamp(i64);
+
+pub fn get_local_data(file: &str) -> Result<AocData, AocError> {
+    let mut file = File::open(file)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    serde_json::from_str(&contents).map_err(|err| err.into())
+}
+
+pub async fn get_aoc_data() -> Result<AocData, AocError> {
+    let client = reqwest::Client::new();
+    let aoc_cookie = get_session_cookie()?;
+    let res = client
+        .get("https://adventofcode.com/2020/leaderboard/private/view/152507.json")
+        .header(COOKIE, aoc_cookie)
+        .send()
+        .await?
+        .text()
+        .await?;
+    Ok(serde_json::from_str(&res)?)
+}
+
 
 fn get_session_cookie() -> Result<String, AocError> {
     let env_var = "AOC_SESSION";
@@ -286,6 +305,7 @@ pub enum AocError {
         #[from]
         source: reqwest::Error,
     },
+    // TODO: The data crate should not depend on serenity.
     #[error("Discord error: {}", source.to_string())]
     Discord {
         #[from]
@@ -315,8 +335,8 @@ fn de_player_id<'de, D: Deserializer<'de>>(deserializer: D) -> Result<PlayerId, 
     Ok(PlayerId(raw))
 }
 
-///// If no star, the `last_star_ts` field is set to 0, not `null`. Requires special handling.
-///// It seems to have been fixed now, but I'll keep both match arms to be safe.
+// If no star, the `last_star_ts` field is set to 0, not `null`. Requires special handling.
+// It seems to have been fixed now, but I'll keep both match arms to be safe.
 fn de_timestamp<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<TimeStamp>, D::Error> {
     match Value::deserialize(deserializer)? {
         Value::String(s) => {
