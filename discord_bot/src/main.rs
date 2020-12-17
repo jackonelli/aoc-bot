@@ -1,4 +1,4 @@
-use aoc_discord_client::Handler;
+use aoc_discord_bot::Handler;
 use serenity::prelude::*;
 use std::env;
 

@@ -1,5 +1,5 @@
 [package]
-name = "aoc_discord_client"
+name = "aoc_discord_bot"
 version = "0.1.0"
 authors = ["Jacko Jackonelli <jakob.lindqvist.92@gmail.com>"]
 edition = "2018"
