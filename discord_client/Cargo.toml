@@ -3,10 +3,14 @@ name = "aoc_discord_client"
 version = "0.1.0"
 authors = ["Jacko Jackonelli <jakob.lindqvist.92@gmail.com>"]
 edition = "2018"
+repository = "https://github.com/jackonelli/aoc-bot/"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+description = "Discord bot for the annual Advent of Code competition"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-aoc_data = {path = "../data"}
-serenity = { default-features = false, features = ["client", "gateway", "model", "rustls_backend"], version = "0.9.0-rc.2"}
+aoc_data = "0.1.0"
+serenity = { default-features = false, features = ["client", "gateway", "model", "rustls_backend"], version = ">=0.9"}
 tokio = { version = "0.2", features = ["time", "macros"] }
