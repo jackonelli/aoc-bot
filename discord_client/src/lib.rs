@@ -4,7 +4,6 @@ use serenity::{
     model::{channel::Message, gateway::Ready, id::ChannelId},
     prelude::*,
 };
-use std::fs::File;
 use std::time::Duration;
 
 const API_DELAY: Duration = Duration::from_secs(901);

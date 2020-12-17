@@ -57,8 +57,8 @@ impl AocData {
     /// Aggregate possible diff
     ///
     /// Compare `self` to a previous data point `prev`.
-    /// If there are more recent stars or a change of players, there is a `Some([Diff])`.
-    /// Otherwise there is `None`.
+    /// If there are more recent stars or a change of players, return `Some([Diff])`.
+    /// Otherwise return `None`.
     ///
     /// TODO: Correct check for change in players. Add field `lost_players` in [`Diff`]
     ///
