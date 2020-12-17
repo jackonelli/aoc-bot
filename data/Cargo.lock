@@ -7,7 +7,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee2a4ec343196209d6594e19543ae87a39f96d5534d7174822a3ad825dd6ed7e"
 
 [[package]]
-name = "aoc_data"
+name = "aoc-bot"
 version = "0.1.0"
 dependencies = [
  "derive_more",
@@ -17,14 +17,6 @@ dependencies = [
  "serde_json",
  "serenity",
  "thiserror",
-]
-
-[[package]]
-name = "aoc_discord_client"
-version = "0.1.0"
-dependencies = [
- "aoc_data",
- "serenity",
  "tokio",
 ]
 

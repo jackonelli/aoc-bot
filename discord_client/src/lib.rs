@@ -1,5 +1,4 @@
-use crate::aoc_data::{get_aoc_data, get_local_data, AocData, AocError};
-use crate::STAR_EMOJI;
+use aoc_data::{STAR_EMOJI, get_aoc_data, get_local_data, AocData, AocError};
 use serenity::{
     async_trait,
     model::{channel::Message, gateway::Ready, id::ChannelId},
@@ -60,8 +59,7 @@ async fn update(channel_id: &ChannelId, ctx: Context) -> Result<(), AocError> {
                 .say(&ctx.http, &diff.fmt())
                 .await
                 .map_err(|err| AocError::Discord { source: err })?;
-            serde_json::to_writer(&File::create("latest.json")?, &latest_data)?;
-            Ok(())
+            latest_data.write_to_file("latest.json")
         }
         None => Ok(()),
     }

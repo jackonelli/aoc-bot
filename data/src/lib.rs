@@ -1,7 +1,6 @@
 //! # Advent of Code data
 //!
 //! Provides a strictly typed data schema and logic for the [Advent of Code](https://adventofcode.com/) competition API.
-use crate::STAR_EMOJI;
 use derive_more::Display;
 use reqwest::header::COOKIE;
 use serde::{de, Deserialize, Deserializer, Serialize};
@@ -12,6 +11,8 @@ use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use thiserror::Error;
+
+pub const STAR_EMOJI: char = '\u{2B50}';
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AocData {
@@ -122,6 +123,9 @@ impl AocData {
 
     fn num_players(&self) -> usize {
         self.players.len()
+    }
+    pub fn write_to_file(&self, file: &str) -> Result<(), AocError> {
+        serde_json::to_writer(&File::create(file)?, self).map_err(|err| err.into())
     }
 }
 

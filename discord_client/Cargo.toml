@@ -1,0 +1,12 @@
+[package]
+name = "aoc_discord_client"
+version = "0.1.0"
+authors = ["Jacko Jackonelli <jakob.lindqvist.92@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+aoc_data = {path = "../data"}
+serenity = { default-features = false, features = ["client", "gateway", "model", "rustls_backend"], version = "0.9.0-rc.2"}
+tokio = { version = "0.2", features = ["time", "macros"] }

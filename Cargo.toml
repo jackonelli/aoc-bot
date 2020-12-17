@@ -1,15 +1,6 @@
-[package]
-name = "aoc-bot"
-version = "0.1.0"
-authors = ["Jacko Jackonelli <jakob.lindqvist.92@gmail.com>"]
-edition = "2018"
+[workspace]
 
-[dependencies]
-thiserror = "*"
-derive_more = "*"
-tokio = { version = "0.2", features = ["time", "macros"] }
-serenity = { default-features = false, features = ["client", "gateway", "model", "rustls_backend"], version = "0.9.0-rc.2"}
-serde = { version = ">=1", features = ["derive"] }
-serde_json = "*"
-reqwest =  {version = ">=0.10", features = ["blocking", "rustls-tls"], default_features = false}
-prettytable-rs = "*"
+members = [
+  "discord_client",
+  "data",
+]
