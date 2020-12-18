@@ -10,6 +10,7 @@ checksum = "ee2a4ec343196209d6594e19543ae87a39f96d5534d7174822a3ad825dd6ed7e"
 name = "aoc_data"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "derive_more",
  "prettytable-rs",
  "reqwest",

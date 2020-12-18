@@ -3,7 +3,7 @@
 //! Provides a strictly typed data schema and logic for the [Advent of Code](https://adventofcode.com/) competition API.
 mod time;
 pub mod score;
-use crate::time::{Day, TimeStamp, de_timestamp};
+use crate::time::{Day, TimeStamp, de_timestamp, de_opt_timestamp};
 use crate::score::{Score, StarCount, LocalScore, GlobalScore};
 use reqwest::header::COOKIE;
 use serde::{de, Deserialize, Deserializer, Serialize};
@@ -127,33 +127,28 @@ impl AocData {
     fn num_players(&self) -> usize {
         self.players.len()
     }
+
     pub fn write_to_file(&self, file: &str) -> Result<(), AocError> {
         serde_json::to_writer(&File::create(file)?, self).map_err(|err| err.into())
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug)]
 pub struct Diff {
     new_players: Vec<Player>,
-    new_stars: HashMap<String, BTreeMap<Day, StarCount>>,
+    new_stars: HashMap<String, BTreeMap<Day, NewStars>>,
 }
 
 impl Diff {
     pub fn fmt(self) -> String {
         let mut fmt_diff = String::new();
         for (pl, stars) in self.new_stars.iter() {
-            for (day, sc) in stars {
+            for (day, new_stars) in stars {
                 fmt_diff.push_str(&format!(
                     "{0: <20} - Dag {1: <2}: {2:<2}\n",
                     pl,
                     day,
-                    if *sc == StarCount(1) {
-                        STAR_EMOJI.to_string()
-                    } else if *sc == StarCount(2) {
-                        format!("{}{}", STAR_EMOJI, STAR_EMOJI)
-                    } else {
-                        panic!("Zero star count should be filtered out")
-                    },
+                    new_stars.fmt()
                 ));
             }
         }
@@ -168,25 +163,49 @@ impl Diff {
     }
 }
 
+#[derive(Clone, Debug)]
+struct NewStars(Vec<TimeStamp>);
+
+impl NewStars {
+    /// Format new stars for update
+    ///
+    /// 1 or 2 star emojis, with corresponding timestamp in hour and minue resolution
+    fn fmt(&self) -> String {
+        let mut str_ = String::new();
+        str_.push_str(&STAR_EMOJI.to_string().repeat(self.0.len()));
+        let times =
+            if self.0.len() == 1 {
+                let (hour, min) = self.0[0].hour_and_minute();
+                format!(" ({}:{})", hour, min)
+            } else {
+                let (hour_1, min_1) = self.0[0].hour_and_minute();
+                let (hour_2, min_2) = self.0[1].hour_and_minute();
+                format!(" ({}:{}, {}:{})", hour_1, min_1, hour_2, min_2)
+            };
+        str_.push_str(&times);
+        str_
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct Player {
     name: String,
     local_score: LocalScore,
     global_score: GlobalScore,
-    #[serde(deserialize_with = "de_timestamp")]
+    #[serde(deserialize_with = "de_opt_timestamp")]
     last_star_ts: Option<TimeStamp>,
     stars: StarCount,
     completion_day_level: BTreeMap<Day, DayCompletion>,
 }
 
 impl Player {
-    fn diff_stars(&self, prev: &Player) -> BTreeMap<Day, StarCount> {
+    fn diff_stars(&self, prev: &Player) -> BTreeMap<Day, NewStars> {
         self.completion_day_level
             .iter()
             .fold(BTreeMap::new(), |mut acc, (day, dc)| {
                 let new_star_count = dc.diff(prev.completion_day_level.get(day));
                 // `dc.diff` can return 0, which we don't want to record.
-                if new_star_count == StarCount(1) || new_star_count == StarCount(2) {
+                if new_star_count.0.len() == 1 || new_star_count.0.len() == 2 {
                     acc.insert(*day, new_star_count);
                 }
                 acc
@@ -213,7 +232,7 @@ struct DayCompletion {
 }
 
 impl DayCompletion {
-    fn diff(&self, other: Option<&DayCompletion>) -> StarCount {
+    fn diff(&self, other: Option<&DayCompletion>) -> NewStars {
         match other {
             // If the key exists in prev, the first star must be taken.
             // Check if the second star is taken in the new data but not in the prev.
@@ -221,29 +240,29 @@ impl DayCompletion {
             // one new star.
             Some(prev_dc) => {
                 if prev_dc.star_2.is_none() && self.star_2.is_some() {
-                    StarCount(2)
+                    NewStars(vec![self.star_1.ts, self.star_2.unwrap().ts])
                 } else {
-                    StarCount(0)
+                    NewStars(vec![])
                 }
             }
             // If the key does not exist in prev, then either one or both stars have been
             // acquired since prev.
             None => {
                 if self.star_2.is_some() {
-                    StarCount(2)
+                    NewStars(vec![self.star_1.ts, self.star_2.unwrap().ts])
                 } else {
-                    StarCount(1)
+                    NewStars(vec![self.star_1.ts])
                 }
             }
         }
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 struct StarProgress {
     #[serde(rename = "get_star_ts")]
     #[serde(deserialize_with = "de_timestamp")]
-    ts: Option<TimeStamp>,
+    ts: TimeStamp,
 }
 
 pub fn get_local_data(file: &str) -> Result<AocData, AocError> {

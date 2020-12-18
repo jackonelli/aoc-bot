@@ -27,6 +27,7 @@ impl EventHandler for Handler {
                         Ok(_) => {}
                         Err(err) => println!("{}", err),
                     }
+                    // TODO: look up throttle.
                     tokio::time::delay_for(API_DELAY).await;
                 }
             }
@@ -38,6 +39,7 @@ impl EventHandler for Handler {
     }
 }
 
+/// Respond with current score
 async fn publish_score(channel_id: &ChannelId, ctx: &Context) -> Result<Message, AocError> {
     let aoc_data = get_local_data("latest.json")?;
     channel_id
