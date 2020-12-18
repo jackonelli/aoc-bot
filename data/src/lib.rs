@@ -1,15 +1,14 @@
 //! # Advent of Code data
 //!
 //! Provides a strictly typed data schema and logic for the [Advent of Code](https://adventofcode.com/) competition API.
-mod timestamp;
+mod time;
 pub mod score;
-use crate::timestamp::{TimeStamp, de_timestamp};
+use crate::time::{Day, TimeStamp, de_timestamp};
 use crate::score::{Score, StarCount, LocalScore, GlobalScore};
-use derive_more::Display;
 use reqwest::header::COOKIE;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
-use std::cmp::{Eq, Ord, PartialEq, PartialOrd, Reverse};
+use std::cmp::{Eq, PartialEq, Reverse};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
 use std::fs::File;
@@ -174,7 +173,6 @@ struct Player {
     name: String,
     local_score: LocalScore,
     global_score: GlobalScore,
-    //TODO rename to latest star
     #[serde(deserialize_with = "de_timestamp")]
     last_star_ts: Option<TimeStamp>,
     stars: StarCount,
@@ -202,11 +200,6 @@ impl Player {
         }
     }
 }
-
-#[derive(
-    Copy, Clone, Debug, Display, Hash, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize,
-)]
-struct Day(u32);
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq, Deserialize, Serialize)]
 struct PlayerId(u32);

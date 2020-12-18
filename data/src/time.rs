@@ -1,5 +1,12 @@
+use derive_more::Display;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
+
+#[derive(
+    Copy, Clone, Debug, Display, Hash, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize,
+)]
+pub(crate) struct Day(u32);
+
 #[derive(Copy, Clone, Debug, Deserialize, Serialize, Ord, PartialOrd, PartialEq, Eq)]
 pub struct TimeStamp(i64);
 
