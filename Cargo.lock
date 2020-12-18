@@ -20,25 +20,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "aoc_data"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31b81a602019d1431cca90a6897b7971354d53cef3b360642f8d50c682eea5cd"
-dependencies = [
- "derive_more",
- "prettytable-rs",
- "reqwest",
- "serde",
- "serde_json",
- "serenity",
- "thiserror",
-]
-
-[[package]]
 name = "aoc_discord_bot"
 version = "0.1.0"
 dependencies = [
- "aoc_data 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "aoc_data",
  "serenity",
  "tokio",
 ]

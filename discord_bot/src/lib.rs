@@ -1,4 +1,4 @@
-use aoc_data::{STAR_EMOJI, get_aoc_data, get_local_data, AocData, AocError};
+use aoc_data::{get_aoc_data, get_local_data, AocData, AocError, STAR_EMOJI};
 use serenity::{
     async_trait,
     model::{channel::Message, gateway::Ready, id::ChannelId},
@@ -16,14 +16,14 @@ pub struct Handler;
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
         match msg.content.as_ref() {
-            SCORE_CMD => match publish_score(&msg.channel_id, ctx).await {
+            SCORE_CMD => match publish_score(&msg.channel_id, &ctx).await {
                 Ok(_) => {}
                 Err(err) => println!("{}", err),
             },
             START_CMD => {
                 println!("Starting");
                 loop {
-                    match update(&msg.channel_id, ctx.clone()).await {
+                    match update(&msg.channel_id, &ctx).await {
                         Ok(_) => {}
                         Err(err) => println!("{}", err),
                     }
@@ -38,7 +38,7 @@ impl EventHandler for Handler {
     }
 }
 
-async fn publish_score(channel_id: &ChannelId, ctx: Context) -> Result<Message, AocError> {
+async fn publish_score(channel_id: &ChannelId, ctx: &Context) -> Result<Message, AocError> {
     let aoc_data = get_local_data("latest.json")?;
     channel_id
         .say(&ctx.http, &aoc_data.scores_fmt())
@@ -47,7 +47,7 @@ async fn publish_score(channel_id: &ChannelId, ctx: Context) -> Result<Message, 
 }
 
 /// Check for and publish update
-async fn update(channel_id: &ChannelId, ctx: Context) -> Result<(), AocError> {
+async fn update(channel_id: &ChannelId, ctx: &Context) -> Result<(), AocError> {
     println!("Checking for updates");
     let latest_data = get_aoc_data().await?;
     let prev: AocData = get_local_data("latest.json")?;

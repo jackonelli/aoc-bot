@@ -1,11 +1,15 @@
 //! # Advent of Code data
 //!
 //! Provides a strictly typed data schema and logic for the [Advent of Code](https://adventofcode.com/) competition API.
+mod timestamp;
+pub mod score;
+use crate::timestamp::{TimeStamp, de_timestamp};
+use crate::score::{Score, StarCount, LocalScore, GlobalScore};
 use derive_more::Display;
 use reqwest::header::COOKIE;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
-use std::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd, Reverse};
+use std::cmp::{Eq, Ord, PartialEq, PartialOrd, Reverse};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
 use std::fs::File;
@@ -154,9 +158,12 @@ impl Diff {
                 ));
             }
         }
-        fmt_diff.push_str("New players: ");
-        for pl in &self.new_players {
-            fmt_diff.push_str(&format!("{} ", pl.name));
+        if !self.new_players.is_empty() {
+            println!("New players: {:?}", &self.new_players);
+            fmt_diff.push_str("New players: ");
+            for pl in &self.new_players {
+                fmt_diff.push_str(&format!("{} ", pl.name));
+            }
         }
         fmt_diff
     }
@@ -166,6 +173,7 @@ impl Diff {
 struct Player {
     name: String,
     local_score: LocalScore,
+    global_score: GlobalScore,
     //TODO rename to latest star
     #[serde(deserialize_with = "de_timestamp")]
     last_star_ts: Option<TimeStamp>,
@@ -195,27 +203,9 @@ impl Player {
     }
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
-pub struct Score {
-    pub stars: StarCount,
-    pub local: LocalScore,
-}
-
-impl PartialOrd for Score {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(&other))
-    }
-}
-
-impl Ord for Score {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.stars
-            .cmp(&other.stars)
-            .then(self.local.cmp(&other.local))
-    }
-}
-
-#[derive(Copy, Clone, Debug, Display, Hash, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize)]
+#[derive(
+    Copy, Clone, Debug, Display, Hash, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize,
+)]
 struct Day(u32);
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq, Deserialize, Serialize)]
@@ -229,7 +219,7 @@ struct DayCompletion {
     star_2: Option<StarProgress>,
 }
 
-impl DayCompletion{
+impl DayCompletion {
     fn diff(&self, other: Option<&DayCompletion>) -> StarCount {
         match other {
             // If the key exists in prev, the first star must be taken.
@@ -246,7 +236,11 @@ impl DayCompletion{
             // If the key does not exist in prev, then either one or both stars have been
             // acquired since prev.
             None => {
-                if self.star_2.is_some() { StarCount(2) } else { StarCount(1) }
+                if self.star_2.is_some() {
+                    StarCount(2)
+                } else {
+                    StarCount(1)
+                }
             }
         }
     }
@@ -258,15 +252,6 @@ struct StarProgress {
     #[serde(deserialize_with = "de_timestamp")]
     ts: Option<TimeStamp>,
 }
-
-#[derive(Copy, Clone, Debug, Display, Deserialize, Serialize, Ord, PartialOrd, Eq, PartialEq)]
-pub struct StarCount(u32);
-
-#[derive(Copy, Clone, Debug, Display, Deserialize, Serialize, Ord, PartialOrd, Eq, PartialEq)]
-pub struct LocalScore(u32);
-
-#[derive(Copy, Clone, Debug, Deserialize, Serialize, Ord, PartialOrd, PartialEq, Eq)]
-pub struct TimeStamp(i64);
 
 pub fn get_local_data(file: &str) -> Result<AocData, AocError> {
     let mut file = File::open(file)?;
@@ -287,7 +272,6 @@ pub async fn get_aoc_data() -> Result<AocData, AocError> {
         .await?;
     Ok(serde_json::from_str(&res)?)
 }
-
 
 fn get_session_cookie() -> Result<String, AocError> {
     let env_var = "AOC_SESSION";
@@ -327,6 +311,11 @@ pub enum AocError {
     },
 }
 
+/// Special parsing of [`PlayerId`]
+///
+/// The player id in the `owner_id` field is repr. as an int (JSON Number)
+/// whereas in the player ids they are strings.
+/// Easiest to accept two match arms.
 fn de_player_id<'de, D: Deserializer<'de>>(deserializer: D) -> Result<PlayerId, D::Error> {
     let raw = match Value::deserialize(deserializer)? {
         Value::String(s) => s.parse::<u32>().map_err(de::Error::custom)?,
@@ -337,24 +326,4 @@ fn de_player_id<'de, D: Deserializer<'de>>(deserializer: D) -> Result<PlayerId, 
         _ => return Err(de::Error::custom("wrong type")),
     };
     Ok(PlayerId(raw))
-}
-
-// If no star, the `last_star_ts` field is set to 0, not `null`. Requires special handling.
-// It seems to have been fixed now, but I'll keep both match arms to be safe.
-fn de_timestamp<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<TimeStamp>, D::Error> {
-    match Value::deserialize(deserializer)? {
-        Value::String(s) => {
-            let ts = s
-                .trim()
-                .parse::<i64>()
-                .map_err(|err| de::Error::custom(&format!("string parse: {}", err.to_string())))?;
-            Ok(Some(TimeStamp(ts)))
-        }
-        Value::Number(ts) => match ts.as_i64() {
-            Some(ts) => Ok(Some(TimeStamp(ts))),
-            None => Err(de::Error::custom("i64 ts parsing")),
-        },
-        Value::Null => Ok(None),
-        _ => Err(de::Error::custom("wrong type")),
-    }
 }
