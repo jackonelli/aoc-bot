@@ -3,8 +3,10 @@
 //! Provides a strictly typed data schema and logic for the [Advent of Code](https://adventofcode.com/) competition API.
 mod time;
 pub mod score;
+pub mod diff;
 use crate::time::{Day, TimeStamp, de_timestamp, de_opt_timestamp};
 use crate::score::{Score, StarCount, LocalScore, GlobalScore};
+use crate::diff::{Diff, NewStars};
 use reqwest::header::COOKIE;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -15,15 +17,38 @@ use std::fs::File;
 use std::io::prelude::*;
 use thiserror::Error;
 
-pub const STAR_EMOJI: char = '\u{2B50}';
+/// For nice formatting
+pub const STAR_SYMBOL: char = '\u{2B50}';
 
+/// Representation of private leaderboard data return from the AoC API
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AocData {
+    /// Name of the event, e.g. '2020'
     event: String,
+    /// Id. of the player hosting the private leaderboard
     #[serde(deserialize_with = "de_player_id")]
     owner_id: PlayerId,
     #[serde(rename = "members")]
+    /// Collection of players in the private leaderboard and their progress.
     players: HashMap<PlayerId, Player>,
+}
+
+/// Player data
+///
+/// Holds the chosen display name and the current progress for all days.
+/// Remaining fields are pre-computed metrics, all of which can be inferred from the
+/// `completion_day_level` field.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct Player {
+    /// Display name
+    name: String,
+    /// Progress for each day
+    completion_day_level: BTreeMap<Day, DayCompletion>,
+    local_score: LocalScore,
+    global_score: GlobalScore,
+    #[serde(deserialize_with = "de_opt_timestamp")]
+    last_star_ts: Option<TimeStamp>,
+    stars: StarCount,
 }
 
 impl AocData {
@@ -34,7 +59,7 @@ impl AocData {
                 "{0: <3} {1: <20} {2:<1}: {3:<5} ls: {4:<4}\n",
                 pos + 1,
                 pl,
-                STAR_EMOJI,
+                STAR_SYMBOL,
                 score.stars,
                 score.local
             ));
@@ -53,8 +78,8 @@ impl AocData {
         scores
     }
 
-    fn player_ids(&self) -> HashSet<PlayerId> {
-        self.players.keys().cloned().collect()
+    fn player_ids(&self) -> HashSet<&PlayerId> {
+        self.players.keys().collect()
     }
 
     /// Aggregate possible diff
@@ -73,11 +98,7 @@ impl AocData {
         if self.latest_star() == prev.latest_star() && self.num_players() == prev.num_players() {
             None
         } else {
-            let new_players: HashSet<PlayerId> = self
-                .player_ids()
-                .difference(&prev.player_ids())
-                .cloned()
-                .collect();
+            let new_players = self.player_ids().difference(&prev.player_ids()).cloned().collect();
             let upd_players = self.updated_players(prev, &new_players);
             let new_stars = upd_players
                 .map(|(new, prev)| (new.name.clone(), new.diff_stars(prev)))
@@ -95,23 +116,23 @@ impl AocData {
 
     /// Updated players
     ///
-    /// Get an iterator over players that are:
-    /// a) Not new, compared to `prev.players`. I.e. players that are in both `prev.players` and `self.players`
-    /// b) Have different timestamps for the last star.
+    /// Get an iterator over players that both:
+    /// a) are not new, compared to `prev.players`. I.e. players that are in both `prev.players` and `self.players`
+    /// b) have different timestamps for the last star.
     ///
     /// Never panics: unwrapping the access of `prev.players[id]` is fine since `id` is in the
     /// set of ids which comes from: `self.players setminus new_players`
     fn updated_players<'a>(
         &'a self,
         prev: &'a AocData,
-        new_players: &'a HashSet<PlayerId>,
+        new_players: &'a HashSet<&'a PlayerId>,
     ) -> impl Iterator<Item = (&'a Player, &'a Player)> {
         self.players
             .iter()
             .filter(move |(id, _player)| !new_players.contains(id))
             .filter(move |(id, player)| {
-                let new_ts = player.last_star_ts;
-                let prev_ts = prev.players.get(id).unwrap().last_star_ts;
+                let new_ts = player.last_star_ts();
+                let prev_ts = prev.players.get(id).unwrap().last_star_ts();
                 new_ts != prev_ts
             })
             .map(move |(id, player)| (player, prev.players.get(id).unwrap()))
@@ -120,7 +141,7 @@ impl AocData {
     pub fn latest_star(&self) -> Option<TimeStamp> {
         self.players
             .iter()
-            .filter_map(|(_, pl)| pl.last_star_ts)
+            .filter_map(|(_, pl)| pl.last_star_ts())
             .max()
     }
 
@@ -133,83 +154,26 @@ impl AocData {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct Diff {
-    new_players: Vec<Player>,
-    new_stars: HashMap<String, BTreeMap<Day, NewStars>>,
-}
-
-impl Diff {
-    pub fn fmt(self) -> String {
-        let mut fmt_diff = String::new();
-        for (pl, stars) in self.new_stars.iter() {
-            for (day, new_stars) in stars {
-                fmt_diff.push_str(&format!(
-                    "{0: <20} - Dag {1: <2}: {2:<2}\n",
-                    pl,
-                    day,
-                    new_stars.fmt()
-                ));
-            }
-        }
-        if !self.new_players.is_empty() {
-            println!("New players: {:?}", &self.new_players);
-            fmt_diff.push_str("New players: ");
-            for pl in &self.new_players {
-                fmt_diff.push_str(&format!("{} ", pl.name));
-            }
-        }
-        fmt_diff
-    }
-}
-
-#[derive(Clone, Debug)]
-struct NewStars(Vec<TimeStamp>);
-
-impl NewStars {
-    /// Format new stars for update
-    ///
-    /// 1 or 2 star emojis, with corresponding timestamp in hour and minue resolution
-    fn fmt(&self) -> String {
-        let mut str_ = String::new();
-        str_.push_str(&STAR_EMOJI.to_string().repeat(self.0.len()));
-        let times =
-            if self.0.len() == 1 {
-                let (hour, min) = self.0[0].hour_and_minute();
-                format!(" ({}:{})", hour, min)
-            } else {
-                let (hour_1, min_1) = self.0[0].hour_and_minute();
-                let (hour_2, min_2) = self.0[1].hour_and_minute();
-                format!(" ({}:{}, {}:{})", hour_1, min_1, hour_2, min_2)
-            };
-        str_.push_str(&times);
-        str_
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-struct Player {
-    name: String,
-    local_score: LocalScore,
-    global_score: GlobalScore,
-    #[serde(deserialize_with = "de_opt_timestamp")]
-    last_star_ts: Option<TimeStamp>,
-    stars: StarCount,
-    completion_day_level: BTreeMap<Day, DayCompletion>,
-}
-
 impl Player {
     fn diff_stars(&self, prev: &Player) -> BTreeMap<Day, NewStars> {
         self.completion_day_level
             .iter()
             .fold(BTreeMap::new(), |mut acc, (day, dc)| {
-                let new_star_count = dc.diff(prev.completion_day_level.get(day));
+                let new_stars = dc.diff(prev.completion_day_level.get(day));
                 // `dc.diff` can return 0, which we don't want to record.
-                if new_star_count.0.len() == 1 || new_star_count.0.len() == 2 {
-                    acc.insert(*day, new_star_count);
+                if new_stars.count() == 1 || new_stars.count() == 2 {
+                    acc.insert(*day, new_stars);
                 }
                 acc
             })
+    }
+
+    /// Get the time of the last acquired star
+    ///
+    /// Currently supplied directly by the API but nice to have it abstracted as a fn call instead
+    /// of reading a field. We may want to calculate it locally.
+    fn last_star_ts(&self) -> Option<TimeStamp> {
+        self.last_star_ts
     }
 
     fn score(&self) -> Score {
@@ -236,7 +200,7 @@ impl DayCompletion {
         match other {
             // If the key exists in prev, the first star must be taken.
             // Check if the second star is taken in the new data but not in the prev.
-            // If yes, return two since we want to display two stars, even though there is only
+            // If yes, return both timestamps since we want to display two stars, even though there is only
             // one new star.
             Some(prev_dc) => {
                 if prev_dc.star_2.is_none() && self.star_2.is_some() {
@@ -248,10 +212,9 @@ impl DayCompletion {
             // If the key does not exist in prev, then either one or both stars have been
             // acquired since prev.
             None => {
-                if self.star_2.is_some() {
-                    NewStars(vec![self.star_1.ts, self.star_2.unwrap().ts])
-                } else {
-                    NewStars(vec![self.star_1.ts])
+                match self.star_2 {
+                    None => NewStars(vec![self.star_1.ts]),
+                    Some(star_2) => NewStars(vec![self.star_1.ts, star_2.ts]),
                 }
             }
         }

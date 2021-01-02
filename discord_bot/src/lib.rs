@@ -1,4 +1,4 @@
-use aoc_data::{get_aoc_data, get_local_data, AocData, AocError, STAR_EMOJI};
+use aoc_data::{get_aoc_data, get_local_data, AocData, AocError, STAR_SYMBOL};
 use serenity::{
     async_trait,
     model::{channel::Message, gateway::Ready, id::ChannelId},
@@ -35,7 +35,7 @@ impl EventHandler for Handler {
         }
     }
     async fn ready(&self, _ctx: Context, ready: Ready) {
-        println!("{} is connected! {}", ready.user.name, STAR_EMOJI);
+        println!("{} is connected! {}", ready.user.name, STAR_SYMBOL);
     }
 }
 

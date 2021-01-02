@@ -20,6 +20,20 @@ impl TimeStamp {
     }
 }
 
+impl TimeStamp {
+    pub fn hour_and_minute_and_secs(self) -> (u32, u32, u32) {
+        let dt: DateTime<Local> = self.into();
+        (dt.hour(), dt.minute(), dt.second())
+    }
+}
+
+impl std::fmt::Display for TimeStamp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (hour, min) = self.hour_and_minute();
+        write!(f, "{}:{}", hour, min)
+    }
+}
+
 impl From<TimeStamp> for DateTime<Local> {
     fn from(ts: TimeStamp) -> Self {
         let d = UNIX_EPOCH + Duration::from_secs(ts.0);
