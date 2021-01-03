@@ -144,7 +144,7 @@ impl AocData {
     }
 
     pub fn write_to_file(&self, file: &str) -> Result<(), AocError> {
-        serde_json::to_writer(&File::create(file)?, self).map_err(|err| err.into())
+        serde_json::to_writer_pretty(&File::create(file)?, self).map_err(|err| err.into())
     }
 }
 

@@ -8,8 +8,5 @@ fn main() -> Result<(), AocError> {
         None => println!("No news"),
     }
 
-    for (pl, new_stars) in latest.diff(&prev).unwrap().new_stars() {
-        println!("{}: {:?}", pl, new_stars)
-    }
     Ok(())
 }
