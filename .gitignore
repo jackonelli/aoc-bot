@@ -1,4 +1,4 @@
 /target
 .env
 *.vscode
-latest.json
+./latest.json

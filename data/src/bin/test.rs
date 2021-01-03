@@ -1,13 +1,15 @@
 use aoc_data::{get_local_data, AocData, AocError};
 
 fn main() -> Result<(), AocError> {
-    let latest: AocData = get_local_data("latest_debug.json")?;
-    println!("Latest: {:?}", latest.latest_star());
-    let prev: AocData = get_local_data("prev_debug.json")?;
-    println!("{:?}", prev.latest_star().unwrap().hour_and_minute());
+    let latest: AocData = get_local_data("data/tests/data/time_2.json")?;
+    let prev: AocData = get_local_data("data/tests/data/time_1.json")?;
     match latest.diff(&prev) {
         Some(diff) => println!("{}", diff.fmt()),
         None => println!("No news"),
+    }
+
+    for (pl, new_stars) in latest.diff(&prev).unwrap().new_stars() {
+        println!("{}: {:?}", pl, new_stars)
     }
     Ok(())
 }

@@ -1,7 +1,7 @@
 //! # Advent of Code data
 //!
 //! Provides a strictly typed data schema and logic for the [Advent of Code](https://adventofcode.com/) competition API.
-mod time;
+pub mod time;
 pub mod score;
 pub mod diff;
 use crate::time::{Day, TimeStamp, de_timestamp, de_opt_timestamp};
@@ -21,7 +21,7 @@ use thiserror::Error;
 pub const STAR_SYMBOL: char = '\u{2B50}';
 
 /// Representation of private leaderboard data return from the AoC API
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AocData {
     /// Name of the event, e.g. '2020'
     event: String,
@@ -39,9 +39,9 @@ pub struct AocData {
 /// Remaining fields are pre-computed metrics, all of which can be inferred from the
 /// `completion_day_level` field.
 #[derive(Clone, Debug, Deserialize, Serialize)]
-struct Player {
+pub struct Player {
     /// Display name
-    name: String,
+    pub name: String,
     /// Progress for each day
     completion_day_level: BTreeMap<Day, DayCompletion>,
     local_score: LocalScore,
@@ -99,6 +99,7 @@ impl AocData {
             None
         } else {
             let new_players = self.player_ids().difference(&prev.player_ids()).cloned().collect();
+            let removed_players = prev.player_ids().difference(&self.player_ids()).map(|id| prev.players.get(&id).unwrap().clone()).collect();
             let upd_players = self.updated_players(prev, &new_players);
             let new_stars = upd_players
                 .map(|(new, prev)| (new.name.clone(), new.diff_stars(prev)))
@@ -109,6 +110,7 @@ impl AocData {
                 .collect();
             Some(Diff {
                 new_players,
+                removed_players,
                 new_stars,
             })
         }
@@ -261,6 +263,12 @@ fn get_session_cookie() -> Result<String, AocError> {
 
 #[derive(Debug, Error)]
 pub enum AocError {
+    #[error("Param {param}:{val} incorrect. {reason}")]
+    Param {
+        param: String,
+        val: String,
+        reason: String
+    },
     #[error("Data could not be deserialized")]
     Serde(#[from] serde_json::Error),
     #[error("API error: {}", source.to_string())]

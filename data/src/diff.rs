@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, HashMap};
 #[derive(Clone, Debug)]
 pub struct Diff {
     pub(crate) new_players: Vec<Player>,
+    pub(crate) removed_players: Vec<Player>,
     pub(crate) new_stars: HashMap<String, BTreeMap<Day, NewStars>>,
 }
 
@@ -22,7 +23,6 @@ impl Diff {
             }
         }
         if !self.new_players.is_empty() {
-            println!("New players: {:?}", &self.new_players);
             fmt_diff.push_str("New players: ");
             for pl in &self.new_players {
                 fmt_diff.push_str(&format!("{} ", pl.name));
@@ -30,9 +30,21 @@ impl Diff {
         }
         fmt_diff
     }
+
+    pub fn new_players(&self) -> impl Iterator<Item = &Player> {
+        self.new_players.iter()
+    }
+
+    pub fn removed_players(&self) -> impl Iterator<Item = &Player> {
+        self.removed_players.iter()
+    }
+
+    pub fn new_stars(&self) -> impl Iterator<Item = (&String, &BTreeMap<Day, NewStars>)> {
+        self.new_stars.iter()
+    }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct NewStars(pub(crate) Vec<TimeStamp>);
 
 impl NewStars {
@@ -49,6 +61,10 @@ impl NewStars {
         };
         str_.push_str(&times);
         str_
+    }
+
+    pub fn new(tss: Vec<TimeStamp>) -> Self {
+        NewStars(tss)
     }
 
     pub fn count(&self) -> usize {

@@ -1,3 +1,4 @@
+use crate::AocError;
 use chrono::prelude::*;
 use chrono::Local;
 use derive_more::Display;
@@ -8,12 +9,30 @@ use std::time::{Duration, UNIX_EPOCH};
 #[derive(
     Copy, Clone, Debug, Display, Hash, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize,
 )]
-pub(crate) struct Day(u32);
+pub struct Day(u32);
+
+impl Day {
+    pub fn try_new(day: u32) -> Result<Self, AocError> {
+        if (1..=25_u32).contains(&day) {
+            Ok(Day(day))
+        } else {
+            Err(AocError::Param {
+                param: "Day".to_string(),
+                val: day.to_string(),
+                reason: "Day not between 1 and 25".to_string(),
+            })
+        }
+    }
+}
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize, Ord, PartialOrd, PartialEq, Eq)]
 pub struct TimeStamp(u64);
 
 impl TimeStamp {
+    pub fn new(ts: u64) -> Self {
+        TimeStamp(ts)
+    }
+
     pub fn hour_and_minute(self) -> (u32, u32) {
         let dt: DateTime<Local> = self.into();
         (dt.hour(), dt.minute())
