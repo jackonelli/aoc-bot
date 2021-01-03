@@ -11,7 +11,6 @@ description = "Library for parsing and processing data from the AoC API."
 [dependencies]
 thiserror = ">=1"
 derive_more = ">=0.99"
-serenity = { default-features = false, features = ["client", "gateway", "model", "rustls_backend"], version = ">=0.9"}
 serde = { version = ">=1", features = ["derive"] }
 serde_json = ">=1"
 reqwest =  {version = ">=0.10", features = ["blocking", "rustls-tls"], default_features = false}

@@ -1,10 +1,11 @@
-use aoc_data::{get_aoc_data, get_local_data, AocData, AocError, STAR_SYMBOL};
+use aoc_data::{get_aoc_data, get_local_data, AocData, STAR_SYMBOL};
 use serenity::{
     async_trait,
     model::{channel::Message, gateway::Ready, id::ChannelId},
     prelude::*,
 };
 use std::time::Duration;
+use anyhow::Result;
 
 const API_DELAY: Duration = Duration::from_secs(901);
 const SCORE_CMD: &str = "?score";
@@ -40,16 +41,16 @@ impl EventHandler for Handler {
 }
 
 /// Respond with current score
-async fn publish_score(channel_id: &ChannelId, ctx: &Context) -> Result<Message, AocError> {
+async fn publish_score(channel_id: &ChannelId, ctx: &Context) -> Result<Message> {
     let aoc_data = get_local_data("latest.json")?;
-    channel_id
+    let msg = channel_id
         .say(&ctx.http, &aoc_data.scores_fmt())
-        .await
-        .map_err(|err| AocError::Discord { source: err })
+        .await?;
+    Ok(msg)
 }
 
 /// Check for and publish update
-async fn update(channel_id: &ChannelId, ctx: &Context) -> Result<(), AocError> {
+async fn update(channel_id: &ChannelId, ctx: &Context) -> Result<()> {
     println!("Checking for updates");
     let latest_data = get_aoc_data().await?;
     let prev: AocData = get_local_data("latest.json")?;
@@ -58,9 +59,8 @@ async fn update(channel_id: &ChannelId, ctx: &Context) -> Result<(), AocError> {
         Some(diff) => {
             channel_id
                 .say(&ctx.http, &diff.fmt())
-                .await
-                .map_err(|err| AocError::Discord { source: err })?;
-            latest_data.write_to_file("latest.json")
+                .await?;
+            Ok(latest_data.write_to_file("latest.json")?)
         }
         None => Ok(()),
     }

@@ -268,12 +268,6 @@ pub enum AocError {
         #[from]
         source: reqwest::Error,
     },
-    // TODO: The data crate should not depend on serenity.
-    #[error("Discord error: {}", source.to_string())]
-    Discord {
-        #[from]
-        source: serenity::Error,
-    },
     #[error("IO error: {}", source.to_string())]
     IO {
         #[from]

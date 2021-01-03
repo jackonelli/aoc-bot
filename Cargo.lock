@@ -7,6 +7,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee2a4ec343196209d6594e19543ae87a39f96d5534d7174822a3ad825dd6ed7e"
 
 [[package]]
+name = "anyhow"
+version = "1.0.37"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee67c11feeac938fae061b232e38e0b6d94f97a9df10e6271319325ac4c56a86"
+
+[[package]]
 name = "aoc_data"
 version = "0.1.0"
 dependencies = [
@@ -16,7 +22,6 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "serenity",
  "thiserror",
 ]
 
@@ -24,6 +29,7 @@ dependencies = [
 name = "aoc_discord_bot"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "aoc_data",
  "serenity",
  "tokio",

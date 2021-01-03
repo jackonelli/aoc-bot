@@ -115,7 +115,7 @@ fn check_stars() {
 
 fn run_test<T>(test: T)
 where
-    T: FnOnce(&Diff) -> () + panic::UnwindSafe,
+    T: FnOnce(&Diff) + panic::UnwindSafe,
 {
     let earlier: AocData =
         get_local_data("tests/data/time_1.json").expect("File: 'time_1.json' missing");
