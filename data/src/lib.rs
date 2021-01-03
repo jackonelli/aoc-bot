@@ -88,14 +88,10 @@ impl AocData {
     /// If there are more recent stars or a change of players, return `Some([Diff])`.
     /// Otherwise return `None`.
     ///
-    /// TODO: Correct check for change in players. Add field `lost_players` in [`Diff`]
-    ///
     /// Never panics: unwrapping the access of `self.players[id]` is fine since `id` is in the
     /// set of `new_players` which is a subset of `self.players`.
     pub fn diff(&self, prev: &AocData) -> Option<Diff> {
-        // Incorrect check since the leaderboard could change such that the players are
-        // different but have the same total number of players.
-        if self.latest_star() == prev.latest_star() && self.num_players() == prev.num_players() {
+        if self.latest_star() == prev.latest_star() && self.player_ids() == prev.player_ids() {
             None
         } else {
             let new_players = self.player_ids().difference(&prev.player_ids()).cloned().collect();
@@ -145,10 +141,6 @@ impl AocData {
             .iter()
             .filter_map(|(_, pl)| pl.last_star_ts())
             .max()
-    }
-
-    fn num_players(&self) -> usize {
-        self.players.len()
     }
 
     pub fn write_to_file(&self, file: &str) -> Result<(), AocError> {
