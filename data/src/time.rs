@@ -4,12 +4,13 @@ use chrono::Local;
 use derive_more::Display;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
+use std::cmp::Ordering;
 use std::time::{Duration, UNIX_EPOCH};
 
 #[derive(
     Copy, Clone, Debug, Display, Hash, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize,
 )]
-pub struct Day(u32);
+pub struct Day(pub(crate) u32);
 
 impl Day {
     pub fn try_new(day: u32) -> Result<Self, AocError> {
@@ -26,7 +27,7 @@ impl Day {
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize, Ord, PartialOrd, PartialEq, Eq)]
-pub struct TimeStamp(u64);
+pub struct TimeStamp(pub(crate) u64);
 
 impl TimeStamp {
     pub fn new(ts: u64) -> Self {
@@ -57,6 +58,15 @@ impl From<TimeStamp> for DateTime<Local> {
     fn from(ts: TimeStamp) -> Self {
         let d = UNIX_EPOCH + Duration::from_secs(ts.0);
         DateTime::<Local>::from(d)
+    }
+}
+
+pub(crate) fn sort_optional_ts(a: &Option<TimeStamp>, b: &Option<TimeStamp>) -> Ordering {
+    match (a, b) {
+        (Some(a), Some(b)) => a.cmp(&b),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => Ordering::Equal,
     }
 }
 

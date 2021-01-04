@@ -1,20 +1,23 @@
 //! # Advent of Code data
 //!
 //! Provides a strictly typed data schema and logic for the [Advent of Code](https://adventofcode.com/) competition API.
-pub mod time;
-pub mod score;
 pub mod diff;
-use crate::time::{Day, TimeStamp, de_timestamp, de_opt_timestamp};
-use crate::score::{Score, StarCount, LocalScore, GlobalScore};
+pub mod score;
+pub mod time;
 use crate::diff::{Diff, NewStars};
+use crate::score::{GlobalScore, LocalScore, Score, StarCount};
+use crate::time::{de_opt_timestamp, de_timestamp, sort_optional_ts, Day, TimeStamp};
+use itertools::Itertools;
 use reqwest::header::COOKIE;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::cmp::{Eq, PartialEq, Reverse};
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::convert::TryFrom;
 use std::env;
 use std::fs::File;
 use std::io::prelude::*;
+use std::iter::once;
 use thiserror::Error;
 
 /// For nice formatting
@@ -78,17 +81,104 @@ impl AocData {
         scores
     }
 
-    pub fn local_scores(&self) -> HashMap<PlayerId, BTreeMap<Day, LocalScore>> {
-        self.players().map(|(id, player)| player.completion_day_level.iter().map(move |(day, day_compl)| (*day, *id, day_compl)));
-        todo!();
+    pub fn local_scores(&self) -> HashMap<PlayerId, BTreeMap<Day, (LocalScore, LocalScore)>> {
+        // Create an iterator over stars with corresponding player_id and timestamp (Option<Timestamp>).
+        // Uses the tuple (day, star number) as key for the stars.
+        // I.e. the result is a tuple of tuples:
+        // ( (day, star number), (player_id, optional timestamp) )
+        let day_compl = self
+            .players()
+            .map(|(id, player)| {
+                player
+                    .completion_day_level
+                    .iter()
+                    .map(move |(day, day_compl)| (day, id, day_compl))
+            })
+            .flatten()
+            // Split the two stars in a DayCompletion into two separate entries:
+            // Group them into tuple of tuples for the later grouping by (key, val)
+            .map(|(day, id, day_compl)| {
+                once(((day, 1), (id, Some(day_compl.star_1.ts)))).chain(once((
+                    (day, 2),
+                    (id, day_compl.star_2.map(|star_progress| star_progress.ts)),
+                )))
+            })
+            .flatten()
+            // Cool efficient grouping
+            .into_grouping_map();
+
+        // Create a hash map with the new 'star_key' groups
+        let mut day_map = day_compl.fold(Vec::new(), |mut acc, _key, val| {
+            acc.push(val);
+            acc
+        });
+
+        // Sort vectors of Option<Timestamp>
+        day_map.iter_mut().for_each(|(_day_key, player_ts)| {
+            player_ts.sort_unstable_by(|(_id_a, ts_a), (_id_b, ts_b)| sort_optional_ts(ts_a, ts_b))
+        });
+
+        // Do a similar flattening then grouping to create a map with player id as the key and a
+        // btree map with (day, (ls, ls)) as the value.
+        let player_day_map = day_map
+            .iter()
+            .map(|(star_key, player_ts)| {
+                player_ts.iter().enumerate().map(move |(idx, (id, ts))| {
+                    let factor = ts.map(|_| 1).unwrap_or(0);
+                    (
+                        **id,
+                        (
+                            *star_key,
+                            LocalScore(
+                                u32::try_from(factor * (self.num_players() - idx))
+                                    .expect("u32 overflow"),
+                            ),
+                        ),
+                    )
+                })
+            })
+            .flatten()
+            .into_grouping_map()
+            .fold(BTreeMap::new(), |mut acc, _key, val| {
+                let (star_key, ls) = val;
+                //merge the individual star_key's into a tuple for each day.
+                let (day, star_num) = star_key;
+                let score = acc.entry(*day).or_insert((LocalScore(0), LocalScore(0)));
+                match star_num {
+                    1 => score.0 = ls,
+                    2 => score.1 = ls,
+                    _ => panic!("Wrong star num"),
+                };
+                acc
+            });
+
+        // Ugly cloning... Don't know how to fix.
+        let no_star_players = self
+            .player_ids()
+            .collect::<HashSet<&PlayerId>>()
+            .difference(&player_day_map.keys().collect())
+            .map(|id| **id)
+            .collect::<Vec<PlayerId>>();
+        player_day_map
+            .into_iter()
+            .chain(no_star_players.into_iter().map(|id| (id, BTreeMap::new())))
+            .collect()
     }
 
-    pub fn players(&self) -> impl Iterator<Item=(&PlayerId, &Player)> {
+    pub fn players(&self) -> impl Iterator<Item = (&PlayerId, &Player)> {
         self.players.iter()
     }
 
-    fn player_ids(&self) -> HashSet<&PlayerId> {
-        self.players.keys().collect()
+    pub fn num_players(&self) -> usize {
+        self.players.len()
+    }
+
+    fn player_ids(&self) -> impl Iterator<Item = &PlayerId> {
+        self.players.keys()
+    }
+
+    fn player_id_set(&self) -> HashSet<&PlayerId> {
+        self.player_ids().collect()
     }
 
     /// Aggregate possible diff
@@ -101,11 +191,20 @@ impl AocData {
     /// set of `new_players` which is a subset of `self.players`.
     /// Same goes for `prev.players[id]` since `id` is in a subset of `prev.players`.
     pub fn diff(&self, prev: &AocData) -> Option<Diff> {
-        if self.latest_star() == prev.latest_star() && self.player_ids() == prev.player_ids() {
+        if self.latest_star() == prev.latest_star() && self.player_id_set() == prev.player_id_set()
+        {
             None
         } else {
-            let new_players = self.player_ids().difference(&prev.player_ids()).cloned().collect();
-            let removed_players = prev.player_ids().difference(&self.player_ids()).map(|id| prev.players.get(&id).unwrap().clone()).collect();
+            let new_players = self
+                .player_id_set()
+                .difference(&prev.player_id_set())
+                .cloned()
+                .collect();
+            let removed_players = prev
+                .player_id_set()
+                .difference(&self.player_id_set())
+                .map(|id| prev.players.get(&id).unwrap().clone())
+                .collect();
             let upd_players = self.updated_players(prev, &new_players);
             let new_stars = upd_players
                 .map(|(new, prev)| (new.name.clone(), new.diff_stars(prev)))
@@ -215,12 +314,10 @@ impl DayCompletion {
             }
             // If the key does not exist in prev, then either one or both stars have been
             // acquired since prev.
-            None => {
-                match self.star_2 {
-                    None => NewStars(vec![self.star_1.ts]),
-                    Some(star_2) => NewStars(vec![self.star_1.ts, star_2.ts]),
-                }
-            }
+            None => match self.star_2 {
+                None => NewStars(vec![self.star_1.ts]),
+                Some(star_2) => NewStars(vec![self.star_1.ts, star_2.ts]),
+            },
         }
     }
 }
@@ -229,7 +326,7 @@ impl DayCompletion {
 struct StarProgress {
     #[serde(rename = "get_star_ts")]
     #[serde(deserialize_with = "de_timestamp")]
-    ts: TimeStamp,
+    pub(crate) ts: TimeStamp,
 }
 
 pub fn get_local_data(file: &str) -> Result<AocData, AocError> {
@@ -269,7 +366,7 @@ pub enum AocError {
     Param {
         param: String,
         val: String,
-        reason: String
+        reason: String,
     },
     #[error("Data could not be deserialized")]
     Serde(#[from] serde_json::Error),
@@ -318,17 +415,37 @@ mod test {
     #[test]
     fn test_only_new_players() {
         let mut players = HashMap::new();
-        players.insert(PlayerId(0), Player{name: "Aba".to_string(), completion_day_level: BTreeMap::new(), local_score: LocalScore::zero(), global_score: GlobalScore::zero(), stars: StarCount(0), last_star_ts: None});
-        let prev = AocData{
+        players.insert(
+            PlayerId(0),
+            Player {
+                name: "Aba".to_string(),
+                completion_day_level: BTreeMap::new(),
+                local_score: LocalScore::zero(),
+                global_score: GlobalScore::zero(),
+                stars: StarCount(0),
+                last_star_ts: None,
+            },
+        );
+        let prev = AocData {
             event: "Test".to_string(),
             owner_id: PlayerId(0),
-            players: players.clone()
+            players: players.clone(),
         };
-        players.insert(PlayerId(1), Player{name: "Bab".to_string(), completion_day_level: BTreeMap::new(), local_score: LocalScore::zero(), global_score: GlobalScore::zero(), stars: StarCount(0), last_star_ts: None});
-        let later = AocData{
+        players.insert(
+            PlayerId(1),
+            Player {
+                name: "Bab".to_string(),
+                completion_day_level: BTreeMap::new(),
+                local_score: LocalScore::zero(),
+                global_score: GlobalScore::zero(),
+                stars: StarCount(0),
+                last_star_ts: None,
+            },
+        );
+        let later = AocData {
             event: "Test".to_string(),
             owner_id: PlayerId(0),
-            players
+            players,
         };
         assert!(later.diff(&prev).unwrap().new_players().count() == 1);
         assert!(!later.diff(&prev).unwrap().fmt().is_empty());

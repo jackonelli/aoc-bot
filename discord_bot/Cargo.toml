@@ -15,3 +15,4 @@ aoc_data = {path="../data"}
 serenity = { default-features = false, features = ["client", "gateway", "model", "rustls_backend"], version = ">=0.9"}
 tokio = { version = "0.2", features = ["time", "macros"] }
 anyhow = ">=1.0"
+futures = ">=0.3"

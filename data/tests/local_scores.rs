@@ -4,8 +4,9 @@
 //! was ignored
 
 use aoc_data::score::LocalScore;
+use aoc_data::time::Day;
 use aoc_data::{get_local_data, AocData, PlayerId};
-use std::collections::HashMap;
+use std::cmp::Reverse;
 use std::panic;
 
 #[test]
@@ -16,17 +17,33 @@ fn check_local_scores() {
             .iter()
             .map(|(id, day_scores)| {
                 (
-                    id.clone(),
-                    day_scores.iter().map(|(_, day_scores)| day_scores).sum(),
+                    *id,
+                    day_scores
+                        .iter()
+                        .filter(|(day, _)| **day != Day::try_new(1).unwrap())
+                        .map(|(_, day_score)| day_score.0 + day_score.1)
+                        .sum(),
                 )
             })
             .collect();
-        local_ls.sort_by_key(|(_, ls)| *ls);
+        local_ls.sort_by_key(|(_, ls)| Reverse(*ls));
         let mut remote_ls: Vec<(PlayerId, LocalScore)> = data
             .players()
-            .map(|(id, pl)| (id.clone(), pl.local_score))
+            .map(|(id, pl)| (*id, pl.local_score))
             .collect();
-        remote_ls.sort_by_key(|(_, ls)| *ls);
+        remote_ls.sort_by_key(|(_, ls)| Reverse(*ls));
+
+        //assert!(remote_ls.len() == local_ls.len());
+
+        for ((lpl, lls), (tpl, tls)) in local_ls.iter().zip(remote_ls.iter()) {
+            // assert!(lpl == tpl);
+            println!(
+                "{:?}: {} / {}",
+                data.players().find(|(id, _)| *id == lpl).unwrap().1.name,
+                lls,
+                tls
+            );
+        }
 
         assert!(local_ls == remote_ls);
     })
@@ -37,7 +54,7 @@ where
     T: FnOnce(&AocData) + panic::UnwindSafe,
 {
     let data: AocData =
-        get_local_data("tests/data/time_2.json").expect("File: 'time_2.json' missing");
+        get_local_data("tests/data/test_data.json").expect("File: 'test_data.json' missing");
 
     let result = panic::catch_unwind(|| test(&data));
 

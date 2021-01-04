@@ -9,6 +9,7 @@ readme = "README.md"
 description = "Parsing and processing data from the AoC API."
 
 [dependencies]
+itertools = ">=0.10"
 thiserror = ">=1"
 derive_more = ">=0.99"
 serde = { version = ">=1", features = ["derive"] }
