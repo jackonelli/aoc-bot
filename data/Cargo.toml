@@ -6,7 +6,7 @@ edition = "2018"
 repository = "https://github.com/jackonelli/aoc-bot/"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-description = "Library for parsing and processing data from the AoC API."
+description = "Parsing and processing data from the AoC API."
 
 [dependencies]
 thiserror = ">=1"
@@ -15,4 +15,5 @@ serde = { version = ">=1", features = ["derive"] }
 serde_json = ">=1"
 reqwest =  {version = ">=0.10", features = ["blocking", "rustls-tls"], default_features = false}
 prettytable-rs = ">=0.8"
-chrono = "*"
+chrono = ">=0.4"
+num = ">=0.3"

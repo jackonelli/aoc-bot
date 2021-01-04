@@ -44,8 +44,8 @@ pub struct Player {
     pub name: String,
     /// Progress for each day
     completion_day_level: BTreeMap<Day, DayCompletion>,
-    local_score: LocalScore,
-    global_score: GlobalScore,
+    pub local_score: LocalScore,
+    pub global_score: GlobalScore,
     #[serde(deserialize_with = "de_opt_timestamp")]
     last_star_ts: Option<TimeStamp>,
     stars: StarCount,
@@ -78,6 +78,15 @@ impl AocData {
         scores
     }
 
+    pub fn local_scores(&self) -> HashMap<PlayerId, BTreeMap<Day, LocalScore>> {
+        self.players().map(|(id, player)| player.completion_day_level.iter().map(move |(day, day_compl)| (*day, *id, day_compl)));
+        todo!();
+    }
+
+    pub fn players(&self) -> impl Iterator<Item=(&PlayerId, &Player)> {
+        self.players.iter()
+    }
+
     fn player_ids(&self) -> HashSet<&PlayerId> {
         self.players.keys().collect()
     }
@@ -90,6 +99,7 @@ impl AocData {
     ///
     /// Never panics: unwrapping the access of `self.players[id]` is fine since `id` is in the
     /// set of `new_players` which is a subset of `self.players`.
+    /// Same goes for `prev.players[id]` since `id` is in a subset of `prev.players`.
     pub fn diff(&self, prev: &AocData) -> Option<Diff> {
         if self.latest_star() == prev.latest_star() && self.player_ids() == prev.player_ids() {
             None
@@ -178,8 +188,8 @@ impl Player {
     }
 }
 
-#[derive(Clone, Debug, Hash, Eq, PartialEq, Deserialize, Serialize)]
-struct PlayerId(u32);
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Deserialize, Serialize)]
+pub struct PlayerId(u32);
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct DayCompletion {
@@ -295,4 +305,32 @@ fn de_player_id<'de, D: Deserializer<'de>>(deserializer: D) -> Result<PlayerId, 
         _ => return Err(de::Error::custom("wrong type")),
     };
     Ok(PlayerId(raw))
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use num::Zero;
+
+    /// Specific bug in which new data with no new stars but a new player generated an empty
+    /// message. It was likely fixed when 'new players' were added to the formatting but test is
+    /// added as a persistent check.
+    #[test]
+    fn test_only_new_players() {
+        let mut players = HashMap::new();
+        players.insert(PlayerId(0), Player{name: "Aba".to_string(), completion_day_level: BTreeMap::new(), local_score: LocalScore::zero(), global_score: GlobalScore::zero(), stars: StarCount(0), last_star_ts: None});
+        let prev = AocData{
+            event: "Test".to_string(),
+            owner_id: PlayerId(0),
+            players: players.clone()
+        };
+        players.insert(PlayerId(1), Player{name: "Bab".to_string(), completion_day_level: BTreeMap::new(), local_score: LocalScore::zero(), global_score: GlobalScore::zero(), stars: StarCount(0), last_star_ts: None});
+        let later = AocData{
+            event: "Test".to_string(),
+            owner_id: PlayerId(0),
+            players
+        };
+        assert!(later.diff(&prev).unwrap().new_players().count() == 1);
+        assert!(!later.diff(&prev).unwrap().fmt().is_empty());
+    }
 }
