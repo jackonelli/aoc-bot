@@ -152,16 +152,11 @@ impl AocData {
                 acc
             });
 
-        // Ugly cloning... Don't know how to fix.
-        let no_star_players = self
-            .player_ids()
-            .collect::<HashSet<&PlayerId>>()
-            .difference(&player_day_map.keys().collect())
-            .map(|id| **id)
-            .collect::<Vec<PlayerId>>();
+        let star_players = player_day_map.iter().map(|(id, _)| *id).collect::<HashSet<PlayerId>>();
+        let no_star_players = self.player_ids().filter(|id| !star_players.contains(id)).map(|id| (*id, BTreeMap::new()));
         player_day_map
             .into_iter()
-            .chain(no_star_players.into_iter().map(|id| (id, BTreeMap::new())))
+            .chain(no_star_players)
             .collect()
     }
 
