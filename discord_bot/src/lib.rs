@@ -5,8 +5,7 @@ use serenity::{
     model::{channel::Message, gateway::Ready, id::ChannelId},
     prelude::*,
 };
-use std::time::Duration;
-use tokio::{stream::StreamExt, time::throttle};
+use tokio::time::{interval, Duration};
 
 const API_DELAY: Duration = Duration::from_secs(901);
 const STORED_DATA_FILE: &str = "latest.json";
@@ -37,9 +36,9 @@ impl EventHandler for Handler {
                             .expect("Could not write initial data to file");
                     }
                 };
-                let mut item_stream = throttle(API_DELAY, futures::stream::repeat(()));
+                let mut interval = interval(API_DELAY);
                 loop {
-                    item_stream.next().await;
+                    interval.tick().await;
                     match update(&msg.channel_id, &ctx).await {
                         Ok(_) => {}
                         Err(err) => println!("{}", err),
