@@ -152,12 +152,15 @@ impl AocData {
                 acc
             });
 
-        let star_players = player_day_map.iter().map(|(id, _)| *id).collect::<HashSet<PlayerId>>();
-        let no_star_players = self.player_ids().filter(|id| !star_players.contains(id)).map(|id| (*id, BTreeMap::new()));
-        player_day_map
-            .into_iter()
-            .chain(no_star_players)
-            .collect()
+        let star_players = player_day_map
+            .iter()
+            .map(|(id, _)| *id)
+            .collect::<HashSet<PlayerId>>();
+        let no_star_players = self
+            .player_ids()
+            .filter(|id| !star_players.contains(id))
+            .map(|id| (*id, BTreeMap::new()));
+        player_day_map.into_iter().chain(no_star_players).collect()
     }
 
     pub fn players(&self) -> impl Iterator<Item = (&PlayerId, &Player)> {

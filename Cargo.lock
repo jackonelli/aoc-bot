@@ -36,6 +36,7 @@ dependencies = [
  "anyhow",
  "aoc_data",
  "futures",
+ "reqwest",
  "serenity",
  "tokio",
 ]
