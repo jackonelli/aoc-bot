@@ -201,7 +201,7 @@ impl AocData {
             let removed_players = prev
                 .player_id_set()
                 .difference(&self.player_id_set())
-                .map(|id| prev.players.get(&id).unwrap().clone())
+                .map(|id| prev.players.get(id).unwrap().clone())
                 .collect();
             let upd_players = self.updated_players(prev, &new_players);
             let new_stars = upd_players
@@ -209,7 +209,7 @@ impl AocData {
                 .collect();
             let new_players = new_players
                 .into_iter()
-                .map(|id| self.players.get(&id).unwrap().clone())
+                .map(|id| self.players.get(id).unwrap().clone())
                 .collect();
             Some(Diff {
                 new_players,

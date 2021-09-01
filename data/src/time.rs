@@ -63,7 +63,7 @@ impl From<TimeStamp> for DateTime<Local> {
 
 pub(crate) fn sort_optional_ts(a: &Option<TimeStamp>, b: &Option<TimeStamp>) -> Ordering {
     match (a, b) {
-        (Some(a), Some(b)) => a.cmp(&b),
+        (Some(a), Some(b)) => a.cmp(b),
         (Some(_), None) => Ordering::Less,
         (None, Some(_)) => Ordering::Greater,
         (None, None) => Ordering::Equal,
