@@ -6,7 +6,7 @@ use std::fs::File;
 use std::io::Read;
 use tokio::time::Duration;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AocBotConfig {
     #[serde(deserialize_with = "de_tokio_duration")]
     /// Duration in seconds
