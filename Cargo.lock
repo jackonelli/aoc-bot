@@ -37,6 +37,8 @@ dependencies = [
  "aoc_data",
  "futures",
  "reqwest",
+ "serde",
+ "serde_json",
  "serenity",
  "tokio",
 ]

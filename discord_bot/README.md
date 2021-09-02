@@ -6,11 +6,12 @@ Setup inspired by [this blog post](https://developers.facebook.com/blog/post/202
 
 To use:
 
-- Setup a Discord bot from: https://discord.com/developers/applications
-- Get the token for the bot, this needs to be available as the environment variable `DISCORD_TOKEN`.
-- Add it to a server
-- Get the session cookie from https://adventofcode.com/
-  This token must be available as the environment variable `AOC_SESSION`.
+- Setup a Discord bot from: https://discord.com/developers/applications.
+- Get the token, and application id for the bot.
+- Add it to a server.
+- Get the session cookie from https://adventofcode.com/.
+- Get a channel id from Discord.
+- Create a config file based on `sample_config.json`
 
 Get the source:
 

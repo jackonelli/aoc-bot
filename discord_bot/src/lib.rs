@@ -1,7 +1,9 @@
 use anyhow::Result;
 use aoc_data::{get_aoc_data, get_local_data, STAR_SYMBOL};
-use serenity::{async_trait, http::Http, model::{channel::Message, gateway::Ready, id::{ApplicationId, ChannelId}}, prelude::*};
+use serenity::{async_trait, http::Http, model::{channel::Message, gateway::Ready, id::{ChannelId}}, prelude::*};
 use tokio::time::{interval, Duration};
+use crate::config::AocBotConfig;
+pub mod config;
 
 // const API_DELAY: Duration = Duration::from_secs(901);
 const API_DELAY: Duration = Duration::from_secs(5);
@@ -49,7 +51,8 @@ async fn test_update(channel_id: &ChannelId, http: &Http) -> Result<()> {
 }
 
 /// Periodic update loop
-pub async fn update_loop(channel_id: &ChannelId, app_id: &ApplicationId,  token: &str) -> Result<()> {
+pub async fn update_loop(config: &AocBotConfig) -> Result<()> {
+    let (token, channel_id, app_id) = (&config.token, &config.channel_id, &config.application_id);
     let http = &Http::new_with_token_application_id(token, u64::from(*app_id));
     // Get previously stored data.
     // If not present: Download data from API and store that before entering the loop.
