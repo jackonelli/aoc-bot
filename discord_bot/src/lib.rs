@@ -8,29 +8,33 @@ pub mod config;
 const STORED_DATA_FILE: &str = "latest.json";
 const SCORE_CMD: &str = "?score";
 
-pub struct AocBot {
+pub async fn try_responder_client_and_updater_from_config(config: AocBotConfig) -> Result<(Client, Updater)> {
+        let responder = Client::builder(&config.token)
+            .application_id(config.application_id.into())
+            .event_handler(Responder)
+            .await
+            .expect("Err creating client");
+        let updater = Updater::try_from_config(config)?;
+        Ok((responder, updater))
+}
+
+pub struct Updater {
     api_delay: Duration,
     token: String,
     application_id: ApplicationId,
     channel_id: ChannelId,
-    pub responder: Client,
 
 }
 
-impl AocBot {
-    pub async fn try_new(api_delay: Duration, token: String, application_id: ApplicationId, channel_id: ChannelId) -> Result<Self> {
-        let responder = Client::builder(&token)
-            .application_id(application_id.into())
-            .event_handler(Responder)
-            .await
-            .expect("Err creating client");
+impl Updater {
+    pub fn try_new(api_delay: Duration, token: String, application_id: ApplicationId, channel_id: ChannelId) -> Result<Self> {
         Ok(
         Self{
-            api_delay, token, application_id, channel_id, responder
+            api_delay, token, application_id, channel_id
         })
     }
-    pub async fn try_from_config(config: AocBotConfig) -> Result<Self>{
-        Self::try_new(config.api_delay, config.token, config.application_id, config.channel_id).await
+    pub fn try_from_config(config: AocBotConfig) -> Result<Self>{
+        Self::try_new(config.api_delay, config.token, config.application_id, config.channel_id)
     }
 
     /// Respond with current score
@@ -101,7 +105,7 @@ impl EventHandler for Responder {
     /// Here, we just match on the message content and react accordingly.
     async fn message(&self, ctx: Context, msg: Message) {
         match msg.content.as_ref() {
-            SCORE_CMD => match AocBot::publish_score(&msg.channel_id, &ctx).await {
+            SCORE_CMD => match Updater::publish_score(&msg.channel_id, &ctx).await {
                 Ok(_) => {}
                 Err(err) => println!("{}", err),
             },

@@ -1,16 +1,16 @@
-use aoc_discord_bot::{AocBot, config::AocBotConfig};
+use aoc_discord_bot::{config::AocBotConfig, try_responder_client_and_updater_from_config};
 
 #[tokio::main]
 async fn main() {
     let config = AocBotConfig::from_config("config.json").expect("Config read failed.");
 
-    let mut bot = AocBot::try_from_config(config.clone()).await.expect("Create bot failed.");
+    let (mut responder, updater) = try_responder_client_and_updater_from_config(config).await.expect("Create bot failed.");
 
     tokio::select! {
-        _ = bot.update_loop() => {
+        _ = updater.update_loop() => {
             println!("The updater stopped unexpectedly")
         }
-        _ = bot.responder.start() => {
+        _ = responder.start() => {
             println!("The responder stopped unexpectedly")
         }
     };
