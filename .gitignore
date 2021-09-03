@@ -1,4 +1,5 @@
 /target
 .env
 *.vscode
-./latest.json
+/latest.json
+/config.json
