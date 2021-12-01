@@ -336,15 +336,14 @@ pub fn get_local_data(file: &str) -> Result<AocData, AocError> {
 
 pub async fn get_aoc_data(aoc_cookie: &str) -> Result<AocData, AocError> {
     let client = reqwest::Client::new();
-    println!("{}", aoc_cookie);
+    let full_cookie = format!("session={}", aoc_cookie);
     let res = client
         .get("https://adventofcode.com/2021/leaderboard/private/view/152507.json")
-        .header(COOKIE, aoc_cookie)
+        .header(COOKIE, full_cookie)
         .send()
         .await?
         .text()
         .await?;
-    println!("res: {:?}", res);
     Ok(serde_json::from_str(&res)?)
 }
 
