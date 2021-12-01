@@ -23,18 +23,19 @@ pub struct Updater {
     token: String,
     application_id: ApplicationId,
     channel_id: ChannelId,
+    aoc_cookie: String,
 
 }
 
 impl Updater {
-    pub fn try_new(api_delay: Duration, token: String, application_id: ApplicationId, channel_id: ChannelId) -> Result<Self> {
+    pub fn try_new(api_delay: Duration, token: String, application_id: ApplicationId, channel_id: ChannelId, aoc_cookie: String) -> Result<Self> {
         Ok(
         Self{
-            api_delay, token, application_id, channel_id
+            api_delay, token, application_id, channel_id, aoc_cookie
         })
     }
     pub fn try_from_config(config: AocBotConfig) -> Result<Self>{
-        Self::try_new(config.api_delay, config.token, config.application_id, config.channel_id)
+        Self::try_new(config.api_delay, config.token, config.application_id, config.channel_id, config.aoc_cookie)
     }
 
     /// Respond with current score
@@ -61,7 +62,7 @@ impl Updater {
         match get_local_data(STORED_DATA_FILE) {
             Ok(_) => {}
             Err(_) => {
-                let prev = get_aoc_data().await.expect("Could not get initial AocData");
+                let prev = get_aoc_data(&self.aoc_cookie).await.expect("Could not get initial AocData");
                 prev.write_to_file(STORED_DATA_FILE)
                     .expect("Could not write initial data to file");
             }
@@ -80,7 +81,7 @@ impl Updater {
     async fn update(&self, http: &Http) -> Result<()> {
         println!("Checking for updates");
         let prev = get_local_data("latest.json")?;
-        let latest_data = get_aoc_data().await?;
+        let latest_data = get_aoc_data(&self.aoc_cookie).await?;
         let diff = latest_data.diff(&prev);
         match diff {
             Some(diff) => {

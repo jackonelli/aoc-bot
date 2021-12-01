@@ -2,5 +2,6 @@
     "token": "secret-token",
     "api_delay": 901,
     "application_id": 1,
-    "channel_id": 2
+    "channel_id": 2,
+    "aoc_cookie": "aoc_cookie"
 }

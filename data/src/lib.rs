@@ -334,28 +334,18 @@ pub fn get_local_data(file: &str) -> Result<AocData, AocError> {
     serde_json::from_str(&contents).map_err(|err| err.into())
 }
 
-pub async fn get_aoc_data() -> Result<AocData, AocError> {
+pub async fn get_aoc_data(aoc_cookie: &str) -> Result<AocData, AocError> {
     let client = reqwest::Client::new();
-    let aoc_cookie = get_session_cookie()?;
+    println!("{}", aoc_cookie);
     let res = client
-        .get("https://adventofcode.com/2020/leaderboard/private/view/152507.json")
+        .get("https://adventofcode.com/2021/leaderboard/private/view/152507.json")
         .header(COOKIE, aoc_cookie)
         .send()
         .await?
         .text()
         .await?;
+    println!("res: {:?}", res);
     Ok(serde_json::from_str(&res)?)
-}
-
-fn get_session_cookie() -> Result<String, AocError> {
-    let env_var = "AOC_SESSION";
-    match env::var(env_var) {
-        Ok(token) => Ok(format!("session={}", token)),
-        Err(err) => Err(AocError::Env {
-            env_var: String::from(env_var),
-            source: err,
-        }),
-    }
 }
 
 #[derive(Debug, Error)]

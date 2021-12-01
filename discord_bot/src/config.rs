@@ -14,6 +14,7 @@ pub struct AocBotConfig {
     pub token: String,
     pub application_id: ApplicationId,
     pub channel_id: ChannelId,
+    pub aoc_cookie: String,
 }
 
 impl AocBotConfig {
