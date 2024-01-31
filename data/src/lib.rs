@@ -23,6 +23,8 @@ use thiserror::Error;
 /// For nice formatting
 pub const STAR_SYMBOL: char = '\u{2B50}';
 
+const API_URL: &'static str = "https://adventofcode.com/2023/leaderboard/private/view/152507.json";
+
 /// Representation of private leaderboard data return from the AoC API
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AocData {
@@ -67,7 +69,6 @@ impl AocData {
                 score.local
             ));
         }
-        fmt_score.push_str("* Local score (ls) för dag 1. ej inräknad. Klintan ska fixa.");
         fmt_score
     }
 
@@ -333,12 +334,11 @@ pub fn get_local_data(file: &str) -> Result<AocData, AocError> {
     file.read_to_string(&mut contents)?;
     serde_json::from_str(&contents).map_err(|err| err.into())
 }
-
 pub async fn get_aoc_data(aoc_cookie: &str) -> Result<AocData, AocError> {
     let client = reqwest::Client::new();
     let full_cookie = format!("session={}", aoc_cookie);
     let res = client
-        .get("https://adventofcode.com/2021/leaderboard/private/view/152507.json")
+        .get(API_URL)
         .header(COOKIE, full_cookie)
         .send()
         .await?
